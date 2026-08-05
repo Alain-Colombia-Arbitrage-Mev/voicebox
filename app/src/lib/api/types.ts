@@ -65,6 +65,20 @@ export interface EffectConfig {
   params: Record<string, number>;
 }
 
+export const EMOTION_VALUES = [
+  'happy',
+  'sad',
+  'angry',
+  'fearful',
+  'disgusted',
+  'surprised',
+  'calm',
+  'fluent',
+  'whisper',
+] as const;
+
+export type EmotionValue = (typeof EMOTION_VALUES)[number];
+
 export interface GenerationRequest {
   profile_id: string;
   text: string;
@@ -78,8 +92,15 @@ export interface GenerationRequest {
     | 'chatterbox'
     | 'chatterbox_turbo'
     | 'tada'
-    | 'kokoro';
+    | 'kokoro'
+    | 'minimax';
   instruct?: string;
+  /** Emotional tone for engines that support it (MiniMax). Omit for auto. */
+  emotion?: EmotionValue;
+  /** Speech rate multiplier [0.5, 2.0] for engines that support it. */
+  speed?: number;
+  /** Pitch shift in semitones [-12, 12] for engines that support it. */
+  pitch?: number;
   /** When true and the profile has a personality prompt, input text is rewritten in-character before TTS. */
   personality?: boolean;
   max_chunk_chars?: number;
@@ -110,6 +131,9 @@ export interface GenerationResponse {
   instruct?: string;
   engine?: string;
   model_size?: string;
+  emotion?: string;
+  speed?: number;
+  pitch?: number;
   status: 'loading_model' | 'generating' | 'completed' | 'failed';
   error?: string;
   is_favorited?: boolean;
@@ -249,6 +273,32 @@ export interface GenerationSettings {
 }
 
 export type GenerationSettingsUpdate = Partial<GenerationSettings>;
+
+export type MiniMaxModel =
+  | 'speech-2.8-hd'
+  | 'speech-2.8-turbo'
+  | 'speech-2.6-hd'
+  | 'speech-2.6-turbo'
+  | 'speech-02-hd'
+  | 'speech-02-turbo'
+  | 'speech-01-hd'
+  | 'speech-01-turbo';
+
+export interface MiniMaxSettings {
+  api_key_set: boolean;
+  api_key_preview: string | null;
+  group_id: string | null;
+  api_host: string;
+  model: MiniMaxModel;
+}
+
+export interface MiniMaxSettingsUpdate {
+  /** Empty string clears the stored key. */
+  api_key?: string;
+  group_id?: string;
+  api_host?: string;
+  model?: MiniMaxModel;
+}
 
 export interface TranscriptionRequest {
   language?: LanguageCode;

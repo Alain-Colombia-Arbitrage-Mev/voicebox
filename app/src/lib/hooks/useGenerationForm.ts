@@ -27,8 +27,14 @@ const generationSchema = z.object({
       'chatterbox_turbo',
       'tada',
       'kokoro',
+      'minimax',
     ])
     .optional(),
+  emotion: z
+    .enum(['happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'calm', 'fluent', 'whisper'])
+    .optional(),
+  speed: z.number().min(0.5).max(2.0).optional(),
+  pitch: z.number().int().min(-12).max(12).optional(),
   personality: z.boolean().optional(),
 });
 
@@ -100,9 +106,11 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                   : 'tada-1b'
                 : engine === 'kokoro'
                   ? 'kokoro'
-                  : engine === 'qwen_custom_voice'
-                    ? `qwen-custom-voice-${data.modelSize}`
-                    : `qwen-tts-${data.modelSize}`;
+                  : engine === 'minimax'
+                    ? 'minimax-speech'
+                    : engine === 'qwen_custom_voice'
+                      ? `qwen-custom-voice-${data.modelSize}`
+                      : `qwen-tts-${data.modelSize}`;
       const displayName =
         engine === 'luxtts'
           ? 'LuxTTS'
@@ -116,25 +124,29 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                   : 'TADA 1B'
                 : engine === 'kokoro'
                   ? 'Kokoro 82M'
-                  : engine === 'qwen_custom_voice'
-                    ? data.modelSize === '1.7B'
-                      ? 'Qwen CustomVoice 1.7B'
-                      : 'Qwen CustomVoice 0.6B'
-                    : data.modelSize === '1.7B'
-                      ? 'Qwen TTS 1.7B'
-                      : 'Qwen TTS 0.6B';
+                  : engine === 'minimax'
+                    ? 'MiniMax Speech (Cloud)'
+                    : engine === 'qwen_custom_voice'
+                      ? data.modelSize === '1.7B'
+                        ? 'Qwen CustomVoice 1.7B'
+                        : 'Qwen CustomVoice 0.6B'
+                      : data.modelSize === '1.7B'
+                        ? 'Qwen TTS 1.7B'
+                        : 'Qwen TTS 0.6B';
 
-      // Check if model needs downloading
-      try {
-        const modelStatus = await apiClient.getModelStatus();
-        const model = modelStatus.models.find((m) => m.model_name === modelName);
+      // Check if model needs downloading (cloud engines are always available)
+      if (engine !== 'minimax') {
+        try {
+          const modelStatus = await apiClient.getModelStatus();
+          const model = modelStatus.models.find((m) => m.model_name === modelName);
 
-        if (model && !model.downloaded) {
-          setDownloadingModelName(modelName);
-          setDownloadingDisplayName(displayName);
+          if (model && !model.downloaded) {
+            setDownloadingModelName(modelName);
+            setDownloadingDisplayName(displayName);
+          }
+        } catch (error) {
+          console.error('Failed to check model status:', error);
         }
-      } catch (error) {
-        console.error('Failed to check model status:', error);
       }
 
       const hasModelSizes =
@@ -142,6 +154,10 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
       // Only Qwen CustomVoice actually honors the instruct kwarg at model level.
       // Base Qwen3-TTS accepts the kwarg but ignores it.
       const supportsInstruct = engine === 'qwen_custom_voice';
+      // Prosody controls only apply to engines that honor them.
+      const supportsEmotion = engine === 'minimax';
+      const supportsSpeed = engine === 'minimax' || engine === 'kokoro';
+      const supportsPitch = engine === 'minimax';
       const effectsChain = options.getEffectsChain?.();
       // This now returns immediately with status="generating"
       const result = await generation.mutateAsync({
@@ -152,6 +168,9 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         model_size: hasModelSizes ? data.modelSize : undefined,
         engine,
         instruct: supportsInstruct ? data.instruct || undefined : undefined,
+        emotion: supportsEmotion ? data.emotion : undefined,
+        speed: supportsSpeed && data.speed !== 1.0 ? data.speed : undefined,
+        pitch: supportsPitch && data.pitch !== 0 ? data.pitch : undefined,
         personality: data.personality || undefined,
         max_chunk_chars: maxChunkChars,
         crossfade_ms: crossfadeMs,
@@ -170,6 +189,9 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         modelSize: data.modelSize,
         instruct: '',
         engine: data.engine,
+        emotion: data.emotion,
+        speed: data.speed,
+        pitch: data.pitch,
         personality: data.personality,
       });
       options.onSuccess?.(result.id);

@@ -34,3 +34,29 @@ async def update_generation_settings_endpoint(
     db: Session = Depends(get_db),
 ):
     return settings_service.update_generation_settings(db, patch.model_dump(exclude_unset=True))
+
+
+def _minimax_response(row) -> models.MiniMaxSettingsResponse:
+    """Never echo the full API key back to clients — expose set/preview only."""
+    key = row.api_key or ""
+    return models.MiniMaxSettingsResponse(
+        api_key_set=bool(key),
+        api_key_preview=key[-4:] if key else None,
+        group_id=row.group_id,
+        api_host=row.api_host,
+        model=row.model,
+    )
+
+
+@router.get("/minimax", response_model=models.MiniMaxSettingsResponse)
+async def get_minimax_settings_endpoint(db: Session = Depends(get_db)):
+    return _minimax_response(settings_service.get_minimax_settings(db))
+
+
+@router.put("/minimax", response_model=models.MiniMaxSettingsResponse)
+async def update_minimax_settings_endpoint(
+    patch: models.MiniMaxSettingsUpdate,
+    db: Session = Depends(get_db),
+):
+    row = settings_service.update_minimax_settings(db, patch.model_dump(exclude_unset=True))
+    return _minimax_response(row)

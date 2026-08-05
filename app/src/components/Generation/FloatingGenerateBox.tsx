@@ -16,6 +16,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
+import { EMOTION_VALUES } from '@/lib/api/types';
 import { getLanguageOptionsForEngine, type LanguageCode } from '@/lib/constants/languages';
 import { useGenerationForm } from '@/lib/hooks/useGenerationForm';
 import { useProfile, useProfiles } from '@/lib/hooks/useProfiles';
@@ -24,8 +25,11 @@ import { cn } from '@/lib/utils/cn';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useStoryStore } from '@/stores/storyStore';
 import { useUIStore } from '@/stores/uiStore';
-import { EngineModelSelector } from './EngineModelSelector';
+import { EMOTION_ENGINES, EngineModelSelector, SPEED_ENGINES } from './EngineModelSelector';
 import { ParalinguisticInput } from './ParalinguisticInput';
+
+const SPEED_OPTIONS = [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0];
+const PITCH_OPTIONS = [-12, -8, -4, -2, 0, 2, 4, 8, 12];
 
 interface FloatingGenerateBoxProps {
   isPlayerOpen?: boolean;
@@ -151,7 +155,8 @@ export function FloatingGenerateBox({
     | 'chatterbox_turbo'
     | 'tada'
     | 'kokoro'
-    | 'qwen_custom_voice';
+    | 'qwen_custom_voice'
+    | 'minimax';
   useEffect(() => {
     if (selectedProfile?.language) {
       form.setValue('language', selectedProfile.language as LanguageCode);
@@ -629,6 +634,103 @@ export function FloatingGenerateBox({
                     </Select>
                   </FormItem>
                 </div>
+
+                {/* Prosody controls — emotion/speed/pitch for engines that honor them */}
+                {(EMOTION_ENGINES.has(watchedEngine || '') ||
+                  SPEED_ENGINES.has(watchedEngine || '')) && (
+                  <div className="flex items-center gap-2 mt-2">
+                    {EMOTION_ENGINES.has(watchedEngine || '') && (
+                      <FormField
+                        control={form.control}
+                        name="emotion"
+                        render={({ field }) => (
+                          <FormItem className="flex-1 space-y-0">
+                            <Select
+                              value={field.value ?? 'auto'}
+                              onValueChange={(v) => field.onChange(v === 'auto' ? undefined : v)}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="h-8 text-xs bg-card border-border rounded-full hover:bg-background/50 transition-all">
+                                  <SelectValue placeholder={t('generation.prosody.emotion')} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent side="top">
+                                <SelectItem value="auto" className="text-xs">
+                                  {t('generation.prosody.emotionAuto')}
+                                </SelectItem>
+                                {EMOTION_VALUES.map((emotion) => (
+                                  <SelectItem key={emotion} value={emotion} className="text-xs">
+                                    {t(`generation.prosody.emotions.${emotion}`)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                    {SPEED_ENGINES.has(watchedEngine || '') && (
+                      <FormField
+                        control={form.control}
+                        name="speed"
+                        render={({ field }) => (
+                          <FormItem className="flex-1 space-y-0">
+                            <Select
+                              value={String(field.value ?? 1.0)}
+                              onValueChange={(v) => field.onChange(parseFloat(v))}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="h-8 text-xs bg-card border-border rounded-full hover:bg-background/50 transition-all">
+                                  <SelectValue placeholder={t('generation.prosody.speed')} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent side="top">
+                                {SPEED_OPTIONS.map((speed) => (
+                                  <SelectItem key={speed} value={String(speed)} className="text-xs">
+                                    {speed === 1.0
+                                      ? `${t('generation.prosody.speed')} 1×`
+                                      : `${speed}×`}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                    {EMOTION_ENGINES.has(watchedEngine || '') && (
+                      <FormField
+                        control={form.control}
+                        name="pitch"
+                        render={({ field }) => (
+                          <FormItem className="flex-1 space-y-0">
+                            <Select
+                              value={String(field.value ?? 0)}
+                              onValueChange={(v) => field.onChange(parseInt(v, 10))}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="h-8 text-xs bg-card border-border rounded-full hover:bg-background/50 transition-all">
+                                  <SelectValue placeholder={t('generation.prosody.pitch')} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent side="top">
+                                {PITCH_OPTIONS.map((pitch) => (
+                                  <SelectItem key={pitch} value={String(pitch)} className="text-xs">
+                                    {pitch === 0
+                                      ? `${t('generation.prosody.pitch')} 0`
+                                      : pitch > 0
+                                        ? `+${pitch} st`
+                                        : `${pitch} st`}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                )}
               </motion.div>
             </AnimatePresence>
           </form>

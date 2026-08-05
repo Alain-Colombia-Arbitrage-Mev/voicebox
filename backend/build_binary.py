@@ -121,6 +121,8 @@ def build_server(cuda=False, rocm=False):
             "--hidden-import",
             "backend.backends.qwen_custom_voice_backend",
             "--hidden-import",
+            "backend.backends.minimax_backend",
+            "--hidden-import",
             "backend.utils.audio",
             "--hidden-import",
             "backend.utils.cache",

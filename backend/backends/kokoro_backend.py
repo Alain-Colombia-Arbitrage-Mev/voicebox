@@ -124,6 +124,9 @@ LANG_CODE_MAP = {
 class KokoroTTSBackend:
     """Kokoro-82M TTS backend — tiny, fast, CPU-friendly."""
 
+    # Prosody controls generate_chunked may forward (see utils/chunked_tts.py)
+    PROSODY_PARAMS = ("speed",)
+
     def __init__(self):
         self._model = None
         self._pipelines: dict = {}  # lang_code -> KPipeline
@@ -246,6 +249,7 @@ class KokoroTTSBackend:
         language: str = "en",
         seed: Optional[int] = None,
         instruct: Optional[str] = None,
+        speed: Optional[float] = None,
     ) -> tuple[np.ndarray, int]:
         """
         Generate audio from text using Kokoro.
@@ -256,6 +260,7 @@ class KokoroTTSBackend:
             language: Language code
             seed: Random seed for reproducibility
             instruct: Not supported by Kokoro (ignored)
+            speed: Speech rate multiplier (default 1.0)
 
         Returns:
             Tuple of (audio_array, sample_rate)
@@ -276,7 +281,7 @@ class KokoroTTSBackend:
 
             # Generate all chunks and concatenate
             audio_chunks = []
-            for result in pipeline(text, voice=voice_name, speed=1.0):
+            for result in pipeline(text, voice=voice_name, speed=speed if speed is not None else 1.0):
                 if result.audio is not None:
                     chunk = result.audio
                     if isinstance(chunk, torch.Tensor):

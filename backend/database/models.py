@@ -74,6 +74,12 @@ class Generation(Base):
     instruct = Column(Text)
     engine = Column(String, default="qwen")
     model_size = Column(String, nullable=True)
+    # Prosody controls (null = engine default) — honored by engines that
+    # support them (MiniMax: all three; Kokoro: speed) and persisted so
+    # retry/regenerate reproduce the exact delivery.
+    emotion = Column(String, nullable=True)
+    speed = Column(Float, nullable=True)
+    pitch = Column(Integer, nullable=True)
     status = Column(String, default="completed")
     error = Column(Text, nullable=True)
     is_favorited = Column(Boolean, default=False)
@@ -253,6 +259,26 @@ class CloudSettings(Base):
     device_name = Column(String, nullable=True)
     account_user_id = Column(String, nullable=True)
     connected_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MiniMaxSettings(Base):
+    """Singleton row holding the MiniMax cloud TTS provider credentials.
+
+    Same pattern as CloudSettings: ``id`` is always 1, a null ``api_key``
+    means "not connected". ``group_id`` is optional (some MiniMax accounts
+    require it as a query param); ``api_host`` allows switching between the
+    global (api.minimax.io) and mainland endpoints; ``model`` selects the
+    speech model used for both cloning previews and generation.
+    """
+
+    __tablename__ = "minimax_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    api_key = Column(String, nullable=True)
+    group_id = Column(String, nullable=True)
+    api_host = Column(String, nullable=False, default="https://api.minimax.io")
+    model = Column(String, nullable=False, default="speech-2.8-hd")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

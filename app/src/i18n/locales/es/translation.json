@@ -718,6 +718,23 @@
       "tooltipInactive": "Hablar en personaje",
       "ariaLabelActive": "Hablando en personaje",
       "ariaLabelInactive": "Hablar en personaje"
+    },
+    "prosody": {
+      "emotion": "Emoción",
+      "emotionAuto": "Emoción automática",
+      "speed": "Velocidad",
+      "pitch": "Tono",
+      "emotions": {
+        "happy": "Feliz",
+        "sad": "Triste",
+        "angry": "Enfadado",
+        "fearful": "Temeroso",
+        "disgusted": "Disgustado",
+        "surprised": "Sorprendido",
+        "calm": "Calmado",
+        "fluent": "Fluido",
+        "whisper": "Susurro"
+      }
     }
   },
   "main": {
@@ -1182,6 +1199,28 @@
       "createdBy": "Creado por",
       "buyCoffee": "Invítame a un café",
       "license": "Con licencia <link>MIT</link>"
+    },
+    "minimax": {
+      "title": "MiniMax (TTS en la nube)",
+      "description": "Clonación de voz en la nube con control de emoción, velocidad y tono. Requiere una API key de MiniMax.",
+      "saveFailed": "No se pudieron guardar los ajustes de MiniMax",
+      "apiKey": {
+        "title": "API key",
+        "configured": "Clave configurada (••••{{preview}})",
+        "notConfigured": "Sin API key — consíguela en platform.minimax.io",
+        "placeholder": "Pega tu API key de MiniMax",
+        "save": "Guardar",
+        "clear": "Quitar"
+      },
+      "model": {
+        "title": "Modelo de voz",
+        "description": "Los modelos HD suenan mejor; los Turbo son más rápidos y baratos."
+      },
+      "groupId": {
+        "title": "Group ID (opcional)",
+        "description": "Solo si tu cuenta de MiniMax requiere el parámetro GroupId.",
+        "placeholder": "GroupId"
+      }
     }
   },
   "models": {

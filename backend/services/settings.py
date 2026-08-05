@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..database import CaptureSettings as DBCaptureSettings
 from ..database import GenerationSettings as DBGenerationSettings
+from ..database import MiniMaxSettings as DBMiniMaxSettings
 from ..utils.capture_chords import (
     default_push_to_talk_chord,
     default_toggle_to_talk_chord,
@@ -84,6 +85,33 @@ def get_generation_settings(db: Session) -> DBGenerationSettings:
 
 def update_generation_settings(db: Session, patch: dict[str, Any]) -> DBGenerationSettings:
     row = _get_or_create_generation_row(db)
+    _apply_patch(row, patch)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _get_or_create_minimax_row(db: Session) -> DBMiniMaxSettings:
+    row = db.query(DBMiniMaxSettings).filter(DBMiniMaxSettings.id == SINGLETON_ID).first()
+    if row is None:
+        row = DBMiniMaxSettings(id=SINGLETON_ID)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+def get_minimax_settings(db: Session) -> DBMiniMaxSettings:
+    """Return the MiniMax provider settings row, creating it if missing."""
+    return _get_or_create_minimax_row(db)
+
+
+def update_minimax_settings(db: Session, patch: dict[str, Any]) -> DBMiniMaxSettings:
+    row = _get_or_create_minimax_row(db)
+    # An empty-string api_key/group_id means "clear the credential".
+    for key in ("api_key", "group_id"):
+        if patch.get(key) == "":
+            patch[key] = None
     _apply_patch(row, patch)
     db.commit()
     db.refresh(row)

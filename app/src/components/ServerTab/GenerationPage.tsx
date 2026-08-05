@@ -1,13 +1,34 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderOpen, Languages, Mic, Zap } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Toggle } from '@/components/ui/toggle';
+import { useToast } from '@/components/ui/use-toast';
+import { apiClient } from '@/lib/api/client';
+import type { MiniMaxModel, MiniMaxSettingsUpdate } from '@/lib/api/types';
 import { useGenerationSettings } from '@/lib/hooks/useSettings';
 import { usePlatform } from '@/platform/PlatformContext';
 import { useServerStore } from '@/stores/serverStore';
 import { SettingRow, SettingSection } from './SettingRow';
+
+const MINIMAX_MODELS: MiniMaxModel[] = [
+  'speech-2.8-hd',
+  'speech-2.8-turbo',
+  'speech-2.6-hd',
+  'speech-2.6-turbo',
+  'speech-02-hd',
+  'speech-02-turbo',
+];
 
 export function GenerationPage() {
   const { t } = useTranslation();
@@ -27,6 +48,30 @@ export function GenerationPage() {
   useEffect(() => setCrossfadeMs(persistedCrossfadeMs), [persistedCrossfadeMs]);
   const [opening, setOpening] = useState(false);
   const [generationsPath, setGenerationsPath] = useState<string | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: minimaxSettings } = useQuery({
+    queryKey: ['minimaxSettings'],
+    queryFn: () => apiClient.getMiniMaxSettings(),
+  });
+  const [minimaxApiKey, setMinimaxApiKey] = useState('');
+  const [minimaxGroupId, setMinimaxGroupId] = useState('');
+  useEffect(() => setMinimaxGroupId(minimaxSettings?.group_id ?? ''), [minimaxSettings?.group_id]);
+  const minimaxMutation = useMutation({
+    mutationFn: (patch: MiniMaxSettingsUpdate) => apiClient.updateMiniMaxSettings(patch),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['minimaxSettings'], data);
+      setMinimaxApiKey('');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: t('settings.minimax.saveFailed'),
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
   useEffect(() => {
     fetch(`${serverUrl}/health/filesystem`)
@@ -144,6 +189,95 @@ export function GenerationPage() {
             </Button>
           }
         />
+      </SettingSection>
+
+      <SettingSection
+        title={t('settings.minimax.title')}
+        description={t('settings.minimax.description')}
+      >
+        <SettingRow
+          title={t('settings.minimax.apiKey.title')}
+          description={
+            minimaxSettings?.api_key_set
+              ? t('settings.minimax.apiKey.configured', {
+                  preview: minimaxSettings.api_key_preview,
+                })
+              : t('settings.minimax.apiKey.notConfigured')
+          }
+          htmlFor="minimaxApiKey"
+        >
+          <div className="flex gap-2">
+            <Input
+              id="minimaxApiKey"
+              type="password"
+              value={minimaxApiKey}
+              onChange={(e) => setMinimaxApiKey(e.target.value)}
+              placeholder={t('settings.minimax.apiKey.placeholder')}
+              autoComplete="off"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 self-center"
+              disabled={!minimaxApiKey.trim() || minimaxMutation.isPending}
+              onClick={() => minimaxMutation.mutate({ api_key: minimaxApiKey.trim() })}
+            >
+              {t('settings.minimax.apiKey.save')}
+            </Button>
+            {minimaxSettings?.api_key_set && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 self-center text-muted-foreground"
+                disabled={minimaxMutation.isPending}
+                onClick={() => minimaxMutation.mutate({ api_key: '' })}
+              >
+                {t('settings.minimax.apiKey.clear')}
+              </Button>
+            )}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          title={t('settings.minimax.model.title')}
+          description={t('settings.minimax.model.description')}
+          action={
+            <Select
+              value={minimaxSettings?.model ?? 'speech-2.8-hd'}
+              onValueChange={(v) => minimaxMutation.mutate({ model: v as MiniMaxModel })}
+            >
+              <SelectTrigger className="h-8 w-[180px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MINIMAX_MODELS.map((model) => (
+                  <SelectItem key={model} value={model} className="text-xs">
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+        />
+
+        <SettingRow
+          title={t('settings.minimax.groupId.title')}
+          description={t('settings.minimax.groupId.description')}
+          htmlFor="minimaxGroupId"
+        >
+          <Input
+            id="minimaxGroupId"
+            value={minimaxGroupId}
+            onChange={(e) => setMinimaxGroupId(e.target.value)}
+            onBlur={() => {
+              if ((minimaxSettings?.group_id ?? '') !== minimaxGroupId) {
+                minimaxMutation.mutate({ group_id: minimaxGroupId });
+              }
+            }}
+            placeholder={t('settings.minimax.groupId.placeholder')}
+            autoComplete="off"
+          />
+        </SettingRow>
       </SettingSection>
       </div>
 

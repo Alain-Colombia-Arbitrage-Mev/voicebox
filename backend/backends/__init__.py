@@ -58,6 +58,8 @@ class ModelConfig:
     needs_trim: bool = False
     retries_runaway: bool = False
     supports_instruct: bool = False
+    # Cloud engines have no local weights — nothing to download or cache.
+    is_remote: bool = False
     languages: list[str] = field(default_factory=lambda: ["en"])
 
 
@@ -216,6 +218,7 @@ TTS_ENGINES = {
     "chatterbox_turbo": "Chatterbox Turbo",
     "tada": "TADA",
     "kokoro": "Kokoro",
+    "minimax": "MiniMax Speech",
 }
 
 LLM_ENGINES = {
@@ -370,6 +373,38 @@ def _get_non_qwen_tts_configs() -> list[ModelConfig]:
             hf_repo_id="hexgrad/Kokoro-82M",
             size_mb=350,
             languages=["en", "es", "fr", "hi", "it", "pt", "ja", "zh"],
+        ),
+        ModelConfig(
+            model_name="minimax-speech",
+            display_name="MiniMax Speech (Cloud)",
+            engine="minimax",
+            hf_repo_id="",
+            size_mb=0,
+            is_remote=True,
+            languages=[
+                "zh",
+                "en",
+                "ja",
+                "ko",
+                "de",
+                "fr",
+                "ru",
+                "pt",
+                "es",
+                "it",
+                "he",
+                "ar",
+                "da",
+                "el",
+                "fi",
+                "hi",
+                "ms",
+                "nl",
+                "no",
+                "pl",
+                "sv",
+                "tr",
+            ],
         ),
     ]
 
@@ -723,6 +758,10 @@ def get_tts_backend_for_engine(engine: str) -> TTSBackend:
             from .qwen_custom_voice_backend import QwenCustomVoiceBackend
 
             backend = QwenCustomVoiceBackend()
+        elif engine == "minimax":
+            from .minimax_backend import MiniMaxTTSBackend
+
+            backend = MiniMaxTTSBackend()
         else:
             raise ValueError(f"Unknown TTS engine: {engine}. Supported: {list(TTS_ENGINES.keys())}")
 

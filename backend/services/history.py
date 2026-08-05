@@ -66,6 +66,9 @@ async def create_generation(
     engine: Optional[str] = "qwen",
     model_size: Optional[str] = None,
     source: str = "manual",
+    emotion: Optional[str] = None,
+    speed: Optional[float] = None,
+    pitch: Optional[int] = None,
 ) -> GenerationResponse:
     """
     Create a new generation history entry.
@@ -102,6 +105,9 @@ async def create_generation(
         instruct=instruct,
         engine=engine,
         model_size=model_size,
+        emotion=emotion,
+        speed=speed,
+        pitch=pitch,
         status=status,
         source=source,
         created_at=datetime.utcnow(),

@@ -70,6 +70,7 @@ const DEFAULT_ENGINE_OPTIONS = [
   { value: 'chatterbox_turbo', label: 'Chatterbox Turbo' },
   { value: 'tada', label: 'TADA' },
   { value: 'kokoro', label: 'Kokoro 82M' },
+  { value: 'minimax', label: 'MiniMax Speech (Cloud)' },
 ] as const;
 
 function makeProfileSchema(t: (key: string) => string) {
@@ -898,6 +899,7 @@ export function ProfileForm() {
                               <SelectContent>
                                 <SelectItem value="kokoro">Kokoro 82M</SelectItem>
                                 <SelectItem value="qwen_custom_voice">Qwen CustomVoice</SelectItem>
+                                <SelectItem value="minimax">MiniMax Speech (Cloud)</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormItem>

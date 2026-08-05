@@ -51,6 +51,8 @@ import type {
   MCPClientBinding,
   MCPClientBindingListResponse,
   MCPClientBindingUpsert,
+  MiniMaxSettings,
+  MiniMaxSettingsUpdate,
   CloudLoginStartResponse,
   CloudStatus,
 } from './types';
@@ -515,6 +517,17 @@ class ApiClient {
     patch: GenerationSettingsUpdate,
   ): Promise<GenerationSettings> {
     return this.request<GenerationSettings>('/settings/generation', {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  async getMiniMaxSettings(): Promise<MiniMaxSettings> {
+    return this.request<MiniMaxSettings>('/settings/minimax');
+  }
+
+  async updateMiniMaxSettings(patch: MiniMaxSettingsUpdate): Promise<MiniMaxSettings> {
+    return this.request<MiniMaxSettings>('/settings/minimax', {
       method: 'PUT',
       body: JSON.stringify(patch),
     });

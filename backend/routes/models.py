@@ -252,6 +252,7 @@ async def get_model_status():
             "display_name": cfg.display_name,
             "hf_repo_id": cfg.hf_repo_id,
             "model_size": cfg.model_size,
+            "is_remote": cfg.is_remote,
             "check_loaded": lambda c=cfg: check_model_loaded(c),
         }
         for cfg in registry_configs
@@ -271,6 +272,25 @@ async def get_model_status():
 
     for config in model_configs:
         try:
+            # Cloud engines have no local weights — always "downloaded".
+            if config["is_remote"]:
+                try:
+                    loaded = config["check_loaded"]()
+                except Exception:
+                    loaded = False
+                statuses.append(
+                    models.ModelStatus(
+                        model_name=config["model_name"],
+                        display_name=config["display_name"],
+                        hf_repo_id=None,
+                        downloaded=True,
+                        downloading=False,
+                        size_mb=0,
+                        loaded=loaded,
+                    )
+                )
+                continue
+
             downloaded = False
             size_mb = None
             loaded = False
@@ -399,6 +419,9 @@ async def trigger_model_download(request: models.ModelDownloadRequest):
     if not config:
         raise HTTPException(status_code=400, detail=f"Unknown model: {request.model_name}")
 
+    if config.is_remote:
+        return {"message": f"{config.display_name} is a cloud model — nothing to download"}
+
     load_func = get_model_load_func(config)
 
     async def download_in_background():
@@ -453,6 +476,9 @@ async def delete_model(model_name: str):
     config = get_model_config(model_name)
     if not config:
         raise HTTPException(status_code=400, detail=f"Unknown model: {model_name}")
+
+    if config.is_remote:
+        raise HTTPException(status_code=400, detail=f"{config.display_name} is a cloud model — nothing to delete")
 
     hf_repo_id = config.hf_repo_id
 

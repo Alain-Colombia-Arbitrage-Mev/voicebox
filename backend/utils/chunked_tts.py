@@ -210,6 +210,9 @@ async def generate_chunked(
     language: str = "en",
     seed: int | None = None,
     instruct: str | None = None,
+    emotion: str | None = None,
+    speed: float | None = None,
+    pitch: int | None = None,
     max_chunk_chars: int = DEFAULT_MAX_CHUNK_CHARS,
     crossfade_ms: int = 50,
     trim_fn=None,
@@ -233,6 +236,10 @@ async def generate_chunked(
         Input text (may be arbitrarily long).
     voice_prompt, language, seed, instruct
         Forwarded to ``backend.generate()`` verbatim.
+    emotion, speed, pitch
+        Prosody controls. Only forwarded to backends that declare them in
+        a ``PROSODY_PARAMS`` class attribute (e.g. MiniMax, Kokoro) so
+        existing backend signatures stay untouched.
     max_chunk_chars : int
         Maximum characters per chunk (default 800).
     crossfade_ms : int
@@ -250,6 +257,13 @@ async def generate_chunked(
     -------
     (audio, sample_rate) : Tuple[np.ndarray, int]
     """
+    supported_prosody = getattr(backend, "PROSODY_PARAMS", ())
+    prosody_kwargs = {
+        key: value
+        for key, value in (("emotion", emotion), ("speed", speed), ("pitch", pitch))
+        if value is not None and key in supported_prosody
+    }
+
     async def generate_one(
         chunk_text: str,
         chunk_seed: int | None,
@@ -261,6 +275,7 @@ async def generate_chunked(
             language,
             chunk_seed,
             instruct,
+            **prosody_kwargs,
         )
 
         if runaway_detector is not None and runaway_detector(chunk_audio, chunk_sr):

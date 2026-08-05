@@ -184,6 +184,14 @@ def _migrate_generations(engine, inspector, tables: set[str]) -> None:
             "source VARCHAR NOT NULL DEFAULT 'manual'",
             "source",
         )
+    # Prosody columns — added with MiniMax engine support
+    columns = _get_columns(inspector, "generations")
+    if "emotion" not in columns:
+        _add_column(engine, "generations", "emotion VARCHAR", "emotion")
+    if "speed" not in columns:
+        _add_column(engine, "generations", "speed FLOAT", "speed")
+    if "pitch" not in columns:
+        _add_column(engine, "generations", "pitch INTEGER", "pitch")
 
 
 def _migrate_effect_presets(engine, inspector, tables: set[str]) -> None:

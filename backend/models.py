@@ -85,7 +85,18 @@ class GenerationRequest(BaseModel):
     seed: Optional[int] = Field(None, ge=0)
     model_size: Optional[str] = Field(default="1.7B", pattern="^(1\\.7B|0\\.6B|1B|3B)$")
     instruct: Optional[str] = Field(None, max_length=500)
-    engine: Optional[str] = Field(default="qwen", pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro)$")
+    engine: Optional[str] = Field(default="qwen", pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|minimax)$")
+    emotion: Optional[str] = Field(
+        None,
+        pattern="^(happy|sad|angry|fearful|disgusted|surprised|calm|fluent|whisper)$",
+        description="Emotional tone for engines that support it (MiniMax). None = auto.",
+    )
+    speed: Optional[float] = Field(
+        None, ge=0.5, le=2.0, description="Speech rate multiplier for engines that support it"
+    )
+    pitch: Optional[int] = Field(
+        None, ge=-12, le=12, description="Pitch shift in semitones for engines that support it"
+    )
     personality: bool = Field(
         default=False,
         description="When true and the profile has a personality prompt, the input text is rewritten in-character before TTS.",
@@ -115,6 +126,9 @@ class GenerationResponse(BaseModel):
     instruct: Optional[str] = None
     engine: Optional[str] = "qwen"
     model_size: Optional[str] = None
+    emotion: Optional[str] = None
+    speed: Optional[float] = None
+    pitch: Optional[int] = None
     status: str = "completed"
     error: Optional[str] = None
     is_favorited: bool = False
@@ -150,6 +164,9 @@ class HistoryResponse(BaseModel):
     instruct: Optional[str] = None
     engine: Optional[str] = "qwen"
     model_size: Optional[str] = None
+    emotion: Optional[str] = None
+    speed: Optional[float] = None
+    pitch: Optional[int] = None
     status: str = "completed"
     error: Optional[str] = None
     is_favorited: bool = False
@@ -307,6 +324,29 @@ class GenerationSettingsUpdate(BaseModel):
     autoplay_on_generate: Optional[bool] = None
 
 
+class MiniMaxSettingsResponse(BaseModel):
+    """MiniMax cloud TTS provider settings. The API key is never echoed back —
+    only whether one is stored plus a short preview for identification."""
+
+    api_key_set: bool = False
+    api_key_preview: Optional[str] = None
+    group_id: Optional[str] = None
+    api_host: str = "https://api.minimax.io"
+    model: str = "speech-2.8-hd"
+
+
+class MiniMaxSettingsUpdate(BaseModel):
+    """Partial update for MiniMax settings. An empty-string api_key clears it."""
+
+    api_key: Optional[str] = Field(default=None, max_length=2048)
+    group_id: Optional[str] = Field(default=None, max_length=128)
+    api_host: Optional[str] = Field(default=None, max_length=256)
+    model: Optional[str] = Field(
+        default=None,
+        pattern="^(speech-2\\.8-hd|speech-2\\.8-turbo|speech-2\\.6-hd|speech-2\\.6-turbo|speech-02-hd|speech-02-turbo|speech-01-hd|speech-01-turbo)$",
+    )
+
+
 class MCPClientBindingResponse(BaseModel):
     """Per-MCP-client voice binding — what voice / engine the server should
     use when a given client_id calls voicebox.speak without args, plus an
@@ -317,7 +357,7 @@ class MCPClientBindingResponse(BaseModel):
     profile_id: Optional[str] = None
     default_engine: Optional[str] = Field(
         None,
-        pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro)$",
+        pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|minimax)$",
     )
     default_personality: bool = False
     last_seen_at: Optional[datetime] = None
@@ -336,7 +376,7 @@ class MCPClientBindingUpsert(BaseModel):
     profile_id: Optional[str] = None
     default_engine: Optional[str] = Field(
         None,
-        pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro)$",
+        pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|minimax)$",
     )
     default_personality: bool = False
 
@@ -355,7 +395,7 @@ class SpeakRequest(BaseModel):
     )
     engine: Optional[str] = Field(
         None,
-        pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro)$",
+        pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|minimax)$",
     )
     personality: Optional[bool] = Field(
         None,

@@ -102,6 +102,9 @@ async def generate_speech(
         engine=engine,
         model_size=model_size if engine_has_model_sizes(engine) else None,
         source=source,
+        emotion=data.emotion,
+        speed=data.speed,
+        pitch=data.pitch,
     )
 
     task_manager.start_generation(
@@ -136,6 +139,9 @@ async def generate_speech(
             normalize=data.normalize,
             effects_chain=effects_chain_config,
             instruct=data.instruct,
+            emotion=data.emotion,
+            speed=data.speed,
+            pitch=data.pitch,
             mode="generate",
             max_chunk_chars=data.max_chunk_chars,
             crossfade_ms=data.crossfade_ms,
@@ -180,6 +186,9 @@ async def retry_generation(generation_id: str, db: Session = Depends(get_db)):
             model_size=gen.model_size or "1.7B",
             seed=gen.seed,
             instruct=gen.instruct,
+            emotion=gen.emotion,
+            speed=gen.speed,
+            pitch=gen.pitch,
             mode="retry",
         )
     )
@@ -224,6 +233,9 @@ async def regenerate_generation(generation_id: str, db: Session = Depends(get_db
             model_size=gen.model_size or "1.7B",
             seed=gen.seed,
             instruct=gen.instruct,
+            emotion=gen.emotion,
+            speed=gen.speed,
+            pitch=gen.pitch,
             mode="regenerate",
             version_id=version_id,
         )
@@ -370,6 +382,9 @@ async def stream_speech(
         language=data.language,
         seed=data.seed,
         instruct=data.instruct,
+        emotion=data.emotion,
+        speed=data.speed,
+        pitch=data.pitch,
         max_chunk_chars=data.max_chunk_chars,
         crossfade_ms=data.crossfade_ms,
         trim_fn=trim_fn,
