@@ -67,6 +67,11 @@ MINIMAX_VOICES = [
     ("Decent_Boy", "Decent Boy", "male", "en"),
     ("Imposing_Manner", "Imposing Manner", "male", "en"),
     ("Elegant_Man", "Elegant Man", "male", "en"),
+    # Spanish system voices (IDs verified against the live API)
+    ("Spanish_SereneWoman", "Serena (Español)", "female", "es"),
+    ("Spanish_Kind-heartedGirl", "Bondadosa (Español)", "female", "es"),
+    ("Spanish_ReservedYoungMan", "Joven Sereno (Español)", "male", "es"),
+    ("Spanish_ThoughtfulMan", "Reflexivo (Español)", "male", "es"),
 ]
 
 # ISO code → language_boost value. Missing codes fall back to "auto".
