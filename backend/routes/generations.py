@@ -76,6 +76,11 @@ async def generate_speech(
 
     model_size = (data.model_size or "1.7B") if engine_has_model_sizes(engine) else None
 
+    # Captured profile prosody fills any control the request leaves unset
+    emotion = data.emotion or getattr(profile, "default_emotion", None)
+    speed = data.speed if data.speed is not None else getattr(profile, "default_speed", None)
+    pitch = data.pitch if data.pitch is not None else getattr(profile, "default_pitch", None)
+
     text = data.text
     source = "manual"
     if data.personality and getattr(profile, "personality", None):
@@ -102,9 +107,9 @@ async def generate_speech(
         engine=engine,
         model_size=model_size if engine_has_model_sizes(engine) else None,
         source=source,
-        emotion=data.emotion,
-        speed=data.speed,
-        pitch=data.pitch,
+        emotion=emotion,
+        speed=speed,
+        pitch=pitch,
     )
 
     task_manager.start_generation(
@@ -139,9 +144,9 @@ async def generate_speech(
             normalize=data.normalize,
             effects_chain=effects_chain_config,
             instruct=data.instruct,
-            emotion=data.emotion,
-            speed=data.speed,
-            pitch=data.pitch,
+            emotion=emotion,
+            speed=speed,
+            pitch=pitch,
             mode="generate",
             max_chunk_chars=data.max_chunk_chars,
             crossfade_ms=data.crossfade_ms,
@@ -382,9 +387,9 @@ async def stream_speech(
         language=data.language,
         seed=data.seed,
         instruct=data.instruct,
-        emotion=data.emotion,
-        speed=data.speed,
-        pitch=data.pitch,
+        emotion=data.emotion or getattr(profile, "default_emotion", None),
+        speed=data.speed if data.speed is not None else getattr(profile, "default_speed", None),
+        pitch=data.pitch if data.pitch is not None else getattr(profile, "default_pitch", None),
         max_chunk_chars=data.max_chunk_chars,
         crossfade_ms=data.crossfade_ms,
         trim_fn=trim_fn,

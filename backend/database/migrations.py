@@ -159,6 +159,14 @@ def _migrate_profiles(engine, inspector, tables: set[str]) -> None:
         _add_column(engine, "profiles", "default_engine VARCHAR", "default_engine")
     if "personality" not in columns:
         _add_column(engine, "profiles", "personality TEXT", "personality")
+    # Captured prosody defaults — added with MiniMax engine support
+    columns = _get_columns(inspector, "profiles")
+    if "default_emotion" not in columns:
+        _add_column(engine, "profiles", "default_emotion VARCHAR", "default_emotion")
+    if "default_speed" not in columns:
+        _add_column(engine, "profiles", "default_speed FLOAT", "default_speed")
+    if "default_pitch" not in columns:
+        _add_column(engine, "profiles", "default_pitch INTEGER", "default_pitch")
 
 
 def _migrate_generations(engine, inspector, tables: set[str]) -> None:

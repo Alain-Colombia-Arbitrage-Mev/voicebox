@@ -44,6 +44,13 @@ class VoiceProfile(Base):
     # cloning metadata above).
     personality = Column(Text, nullable=True)
 
+    # Captured delivery prosody — filled by /profiles/{id}/analyze-prosody
+    # from the reference sample. Used as generation defaults for engines
+    # with prosody controls when the request doesn't override them.
+    default_emotion = Column(String, nullable=True)
+    default_speed = Column(Float, nullable=True)
+    default_pitch = Column(Integer, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

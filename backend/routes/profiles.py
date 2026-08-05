@@ -133,6 +133,55 @@ async def get_profile(
     return profile
 
 
+@router.post("/profiles/{profile_id}/analyze-prosody", response_model=models.ProsodyAnalysisResponse)
+async def analyze_profile_prosody(
+    profile_id: str,
+    db: Session = Depends(get_db),
+):
+    """Capture delivery prosody (speed, emotion) from the profile's
+    reference audio and store it as the profile's generation defaults."""
+    import asyncio
+
+    from ..database import ProfileSample as DBProfileSample
+    from ..services import prosody as prosody_service
+
+    profile = db.query(DBVoiceProfile).filter_by(id=profile_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    sample = db.query(DBProfileSample).filter_by(profile_id=profile_id).first()
+    if not sample:
+        raise HTTPException(status_code=400, detail="Profile has no reference samples to analyze")
+
+    audio_path = config.resolve_storage_path(sample.audio_path)
+    if audio_path is None or not audio_path.exists():
+        raise HTTPException(status_code=404, detail="Sample audio file not found")
+
+    try:
+        analysis = await asyncio.to_thread(
+            prosody_service.analyze_sample, str(audio_path), sample.reference_text
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prosody analysis failed: {e}")
+
+    profile.default_emotion = analysis.emotion
+    profile.default_speed = analysis.speed
+    profile.default_pitch = analysis.pitch
+    db.commit()
+
+    return models.ProsodyAnalysisResponse(
+        profile_id=profile_id,
+        default_emotion=analysis.emotion,
+        default_speed=analysis.speed,
+        default_pitch=analysis.pitch,
+        syllables_per_sec=analysis.syllables_per_sec,
+        f0_median_hz=analysis.f0_median_hz,
+        f0_std_semitones=analysis.f0_std_semitones,
+        energy_cv=analysis.energy_cv,
+        voiced_duration_sec=analysis.voiced_duration_sec,
+    )
+
+
 @router.put("/profiles/{profile_id}", response_model=models.VoiceProfileResponse)
 async def update_profile(
     profile_id: str,

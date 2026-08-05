@@ -43,6 +43,9 @@ class VoiceProfileResponse(BaseModel):
     design_prompt: Optional[str] = None
     default_engine: Optional[str] = None
     personality: Optional[str] = None
+    default_emotion: Optional[str] = None
+    default_speed: Optional[float] = None
+    default_pitch: Optional[int] = None
     generation_count: int = 0
     sample_count: int = 0
     created_at: datetime
@@ -50,6 +53,24 @@ class VoiceProfileResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ProsodyAnalysisResponse(BaseModel):
+    """Result of capturing delivery prosody from a profile's reference audio.
+
+    The stored values become generation defaults for prosody-capable
+    engines; the raw metrics are returned for transparency.
+    """
+
+    profile_id: str
+    default_emotion: Optional[str] = None
+    default_speed: Optional[float] = None
+    default_pitch: Optional[int] = None
+    syllables_per_sec: float
+    f0_median_hz: float
+    f0_std_semitones: float
+    energy_cv: float
+    voiced_duration_sec: float
 
 
 class ProfileSampleCreate(BaseModel):
