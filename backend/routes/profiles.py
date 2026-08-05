@@ -164,15 +164,21 @@ async def analyze_profile_prosody(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prosody analysis failed: {e}")
 
+    # Cloned voices already reproduce the reference pacing at speed 1.0 —
+    # storing the captured multiplier would double-apply it. Only preset
+    # voices (which have their own neutral pace) get the speed default.
+    voice_type = getattr(profile, "voice_type", None) or "cloned"
+    stored_speed = None if voice_type == "cloned" else analysis.speed
+
     profile.default_emotion = analysis.emotion
-    profile.default_speed = analysis.speed
+    profile.default_speed = stored_speed
     profile.default_pitch = analysis.pitch
     db.commit()
 
     return models.ProsodyAnalysisResponse(
         profile_id=profile_id,
         default_emotion=analysis.emotion,
-        default_speed=analysis.speed,
+        default_speed=stored_speed,
         default_pitch=analysis.pitch,
         syllables_per_sec=analysis.syllables_per_sec,
         f0_median_hz=analysis.f0_median_hz,
