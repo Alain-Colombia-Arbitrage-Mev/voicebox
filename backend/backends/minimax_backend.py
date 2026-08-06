@@ -384,7 +384,8 @@ class MiniMaxTTSBackend:
 
             whisper = get_whisper_model()
             checker = getattr(whisper, "_is_model_cached", None)
-            if checker is not None and not checker():
+            whisper_size = getattr(whisper, "model_size", None) or "base"
+            if checker is not None and not checker(whisper_size):
                 logger.info("Whisper not downloaded — skipping clone prompt slice")
                 return None
 
