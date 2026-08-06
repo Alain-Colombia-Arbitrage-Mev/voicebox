@@ -195,3 +195,64 @@ def synthesize(
             audio[-fade_n:] *= ramp[::-1][:, None]
 
     return (audio * volume).astype(np.float32)
+
+
+def _loop_to_length(audio: np.ndarray, target_n: int, sample_rate: int) -> np.ndarray:
+    """Extend audio to target_n samples by crossfade-looping (2s overlap)."""
+    if audio.shape[0] >= target_n:
+        return audio[:target_n]
+    xfade = min(int(2.0 * sample_rate), audio.shape[0] // 4)
+    out = audio
+    while out.shape[0] < target_n:
+        ramp = np.linspace(0.0, 1.0, xfade, dtype=np.float32)
+        ramp = ramp if out.ndim == 1 else ramp[:, None]
+        head = audio[:xfade] * ramp
+        tail = out[-xfade:] * (1.0 - ramp)
+        out = np.concatenate([out[:-xfade], tail + head, audio[xfade:]])
+    return out[:target_n]
+
+
+def infuse_tone_into_music(
+    music: np.ndarray,
+    music_sr: int,
+    *,
+    carrier_hz: float,
+    beat_hz: float = 0.0,
+    mode: str = "pure",
+    duration_sec: float = 300.0,
+    tone_volume: float = 0.3,
+) -> np.ndarray:
+    """Blend an exact synthesized frequency under AI-generated music.
+
+    The music provides the texture; the embedded tone carries the true
+    frequency content (an AI music model cannot guarantee exact Hz).
+    Music shorter than the requested duration is crossfade-looped. Output
+    is stereo when either source is stereo (binaural tones force stereo).
+    """
+    duration_sec = float(np.clip(duration_sec, 10.0, MAX_DURATION_SEC))
+    target_n = int(duration_sec * music_sr)
+
+    music = _loop_to_length(music.astype(np.float32), target_n, music_sr)
+    tone = synthesize(
+        carrier_hz=carrier_hz,
+        beat_hz=beat_hz,
+        mode=mode,
+        duration_sec=duration_sec,
+        volume=tone_volume,
+        sample_rate=music_sr,
+    )
+    tone = tone[:target_n]
+
+    # Promote both to stereo if either is stereo
+    if music.ndim == 1 and tone.ndim == 2:
+        music = np.stack([music, music], axis=1)
+    elif tone.ndim == 1 and music.ndim == 2:
+        tone = np.stack([tone, tone], axis=1)
+
+    n = min(music.shape[0], tone.shape[0])
+    mixed = music[:n] * 0.9 + tone[:n]
+
+    peak = float(np.max(np.abs(mixed))) or 1.0
+    if peak > 0.95:
+        mixed = mixed * (0.95 / peak)
+    return mixed.astype(np.float32)

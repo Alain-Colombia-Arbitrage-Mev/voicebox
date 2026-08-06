@@ -67,6 +67,7 @@ export function StoryContent() {
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
   const [freqPreset, setFreqPreset] = useState('');
   const [freqDuration, setFreqDuration] = useState('300');
+  const [freqWithMusic, setFreqWithMusic] = useState(true);
   const [isGeneratingFreq, setIsGeneratingFreq] = useState(false);
   const { data: freqPresets } = useQuery({
     queryKey: ['frequencyPresets'],
@@ -317,18 +318,29 @@ export function StoryContent() {
     if (!story || !freqPreset) return;
     setIsGeneratingFreq(true);
     try {
-      // Local synthesis — returns a completed generation immediately.
       // Rendered quiet so it sits under the voice as a bed by default.
+      // with_music: MiniMax composes the ambient bed asynchronously and the
+      // exact tone gets infused into it; pure mode is instant local synthesis.
       const generation = await apiClient.generateFrequency({
         preset: freqPreset,
         duration_sec: parseInt(freqDuration, 10),
         volume: 0.3,
+        with_music: freqWithMusic,
       });
-      pushUndo(story.id, story.items);
-      await addStoryItem.mutateAsync({
-        storyId: story.id,
-        data: { generation_id: generation.id, start_time_ms: 0, track: nextBackgroundTrack() },
-      });
+      if (generation.status === 'generating') {
+        addPendingGeneration(generation.id);
+        addPendingStoryAdd(generation.id, story.id, {
+          startTimeMs: 0,
+          track: nextBackgroundTrack(),
+        });
+        toast({ title: t('storyContent.musicQueued') });
+      } else {
+        pushUndo(story.id, story.items);
+        await addStoryItem.mutateAsync({
+          storyId: story.id,
+          data: { generation_id: generation.id, start_time_ms: 0, track: nextBackgroundTrack() },
+        });
+      }
       setIsAddOpen(false);
     } catch (error) {
       toast({
@@ -546,6 +558,22 @@ export function StoryContent() {
                       <SelectItem value="600" className="text-xs">10 min</SelectItem>
                       <SelectItem value="1200" className="text-xs">20 min</SelectItem>
                       <SelectItem value="1800" className="text-xs">30 min</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={freqWithMusic ? 'music' : 'pure'}
+                    onValueChange={(v) => setFreqWithMusic(v === 'music')}
+                  >
+                    <SelectTrigger className="w-24 h-9 text-xs shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="music" className="text-xs">
+                        {t('storyContent.freqModeMusic')}
+                      </SelectItem>
+                      <SelectItem value="pure" className="text-xs">
+                        {t('storyContent.freqModePure')}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <Button

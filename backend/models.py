@@ -175,6 +175,15 @@ class FrequencyGenerationRequest(BaseModel):
     )
     duration_sec: float = Field(default=300, ge=10, le=1800, description="Length in seconds (max 30 min)")
     volume: float = Field(default=0.5, ge=0.05, le=1.0)
+    with_music: bool = Field(
+        default=False,
+        description="Generate MiniMax ambient music and infuse the exact tone into it (async)",
+    )
+    music_prompt: Optional[str] = Field(
+        None,
+        max_length=2000,
+        description="Style for the MiniMax music bed; defaults to a calm ambient prompt built from the preset",
+    )
 
 
 class GenerationResponse(BaseModel):

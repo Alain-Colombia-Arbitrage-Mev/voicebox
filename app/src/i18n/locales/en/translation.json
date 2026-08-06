@@ -650,7 +650,9 @@
     "musicQueued": "Music generation started — it will land on the timeline when ready",
     "musicPromptPlaceholder": "Describe the music, e.g. calm ambient meditation, soft pads",
     "generateFrequency": "Generate frequency",
-    "frequencyPlaceholder": "Healing frequency (888 Hz, Schumann, Theta…)"
+    "frequencyPlaceholder": "Healing frequency (888 Hz, Schumann, Theta…)",
+    "freqModeMusic": "+ AI music",
+    "freqModePure": "Tone only"
   },
   "history": {
     "empty": "No voice generations, yet…",

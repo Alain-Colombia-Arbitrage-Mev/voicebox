@@ -650,7 +650,9 @@
     "musicQueued": "Música en camino — se añadirá a la línea de tiempo al terminar",
     "musicPromptPlaceholder": "Describe la música, p. ej. meditación ambiental calmada, pads suaves",
     "generateFrequency": "Generar frecuencia",
-    "frequencyPlaceholder": "Frecuencia sanadora (888 Hz, Schumann, Theta…)"
+    "frequencyPlaceholder": "Frecuencia sanadora (888 Hz, Schumann, Theta…)",
+    "freqModeMusic": "+ Música IA",
+    "freqModePure": "Solo tono"
   },
   "history": {
     "empty": "Aún no hay generaciones de voz…",

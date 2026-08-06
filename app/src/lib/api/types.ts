@@ -141,6 +141,9 @@ export interface FrequencyGenerationRequest {
   mode?: 'pure' | 'binaural' | 'isochronic';
   duration_sec?: number;
   volume?: number;
+  /** Generate a MiniMax ambient music bed and infuse the exact tone into it (async). */
+  with_music?: boolean;
+  music_prompt?: string;
 }
 
 export interface GenerationVersionResponse {

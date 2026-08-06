@@ -93,6 +93,56 @@ async def generate_frequency(
         mode = data.mode or ("binaural" if beat > 0 else "pure")
         label = f"{carrier:g} Hz" + (f" + {beat:g} Hz {mode}" if beat > 0 else " tono puro")
 
+    # Hybrid mode: MiniMax composes the ambient bed, the exact tone gets
+    # infused underneath (an AI music model can't emit precise Hz itself).
+    if data.with_music:
+        from ..services.music import run_frequency_music_generation
+        from ..services.settings import get_minimax_settings
+        from ..services.task_queue import enqueue_generation
+        from ..utils.tasks import get_task_manager
+
+        if not get_minimax_settings(db).api_key:
+            raise HTTPException(
+                status_code=400,
+                detail="MiniMax API key not configured. Add it in Settings → MiniMax.",
+            )
+
+        music_prompt = data.music_prompt or (
+            f"calm ambient meditation music, soft ethereal pads, very slow, peaceful, "
+            f"healing {carrier:g}hz atmosphere, no drums, no melody spikes"
+        )
+        profile = _get_or_create_frequencies_profile(db)
+        generation_id = str(uuid.uuid4())
+        generation = await history.create_generation(
+            profile_id=profile.id,
+            text=f"{label} + música",
+            language="en",
+            audio_path="",
+            duration=0,
+            seed=None,
+            db=db,
+            generation_id=generation_id,
+            status="generating",
+            engine="minimax",
+            source="frequency",
+        )
+        get_task_manager().start_generation(
+            task_id=generation_id, profile_id=profile.id, text=label
+        )
+        enqueue_generation(
+            generation_id,
+            run_frequency_music_generation(
+                generation_id=generation_id,
+                music_prompt=music_prompt,
+                carrier_hz=carrier,
+                beat_hz=beat,
+                mode=mode,
+                duration_sec=data.duration_sec,
+                tone_volume=data.volume,
+            ),
+        )
+        return generation
+
     # Binaural collapses to a plain beat in mono playback contexts; the
     # user can force isochronic for speaker-friendly output.
     audio = await asyncio.to_thread(
