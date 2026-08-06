@@ -1,16 +1,29 @@
 import { create } from 'zustand';
 
+/** Deferred story placement for a generation that is still rendering. */
+export interface PendingStoryAdd {
+  storyId: string;
+  /** Explicit timeline position; omit to append after the last clip. */
+  startTimeMs?: number;
+  /** Explicit track; omit for the main narration track. */
+  track?: number;
+}
+
 interface GenerationState {
   /** IDs of generations currently in progress */
   pendingGenerationIds: Set<string>;
   /** Whether any generation is in progress (derived from pendingGenerationIds) */
   isGenerating: boolean;
-  /** Map of generationId → storyId for deferred story additions */
-  pendingStoryAdds: Map<string, string>;
+  /** Map of generationId → deferred story placement */
+  pendingStoryAdds: Map<string, PendingStoryAdd>;
   addPendingGeneration: (id: string) => void;
   removePendingGeneration: (id: string) => void;
-  addPendingStoryAdd: (generationId: string, storyId: string) => void;
-  removePendingStoryAdd: (generationId: string) => string | undefined;
+  addPendingStoryAdd: (
+    generationId: string,
+    storyId: string,
+    placement?: Omit<PendingStoryAdd, 'storyId'>,
+  ) => void;
+  removePendingStoryAdd: (generationId: string) => PendingStoryAdd | undefined;
   setActiveGenerationId: (id: string | null) => void;
   activeGenerationId: string | null;
 }
@@ -35,23 +48,23 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       return { pendingGenerationIds: next, isGenerating: next.size > 0 };
     }),
 
-  addPendingStoryAdd: (generationId, storyId) =>
+  addPendingStoryAdd: (generationId, storyId, placement) =>
     set((state) => {
       const next = new Map(state.pendingStoryAdds);
-      next.set(generationId, storyId);
+      next.set(generationId, { storyId, ...placement });
       return { pendingStoryAdds: next };
     }),
 
   removePendingStoryAdd: (generationId) => {
-    const storyId = get().pendingStoryAdds.get(generationId);
-    if (storyId) {
+    const pending = get().pendingStoryAdds.get(generationId);
+    if (pending) {
       set((state) => {
         const next = new Map(state.pendingStoryAdds);
         next.delete(generationId);
         return { pendingStoryAdds: next };
       });
     }
-    return storyId;
+    return pending;
   },
 
   setActiveGenerationId: (id) => set({ activeGenerationId: id }),

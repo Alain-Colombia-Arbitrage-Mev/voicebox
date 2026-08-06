@@ -278,6 +278,13 @@ export function StoryContent() {
     }
   };
 
+  // Background layers (music, frequencies) go on their own track starting at
+  // t=0 so they play UNDER the narration instead of being appended after it.
+  const nextBackgroundTrack = () => {
+    if (!story || story.items.length === 0) return 1;
+    return Math.max(...story.items.map((i) => i.track)) + 1;
+  };
+
   const handleGenerateMusic = async () => {
     if (!story || !musicPrompt.trim()) return;
     setIsGeneratingMusic(true);
@@ -285,7 +292,10 @@ export function StoryContent() {
       const generation = await apiClient.generateMusic({ prompt: musicPrompt.trim() });
       // Track for SSE progress; the story add fires when generation completes
       addPendingGeneration(generation.id);
-      addPendingStoryAdd(generation.id, story.id);
+      addPendingStoryAdd(generation.id, story.id, {
+        startTimeMs: 0,
+        track: nextBackgroundTrack(),
+      });
       toast({ title: t('storyContent.musicQueued') });
       setMusicPrompt('');
       setIsAddOpen(false);
@@ -304,14 +314,16 @@ export function StoryContent() {
     if (!story || !freqPreset) return;
     setIsGeneratingFreq(true);
     try {
-      // Local synthesis — returns a completed generation immediately
+      // Local synthesis — returns a completed generation immediately.
+      // Rendered quiet so it sits under the voice as a bed by default.
       const generation = await apiClient.generateFrequency({
         preset: freqPreset,
         duration_sec: parseInt(freqDuration, 10),
+        volume: 0.3,
       });
       await addStoryItem.mutateAsync({
         storyId: story.id,
-        data: { generation_id: generation.id, track: 0 },
+        data: { generation_id: generation.id, start_time_ms: 0, track: nextBackgroundTrack() },
       });
       setIsAddOpen(false);
     } catch (error) {

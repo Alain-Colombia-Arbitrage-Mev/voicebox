@@ -85,10 +85,15 @@ export function useGenerationProgress() {
             queryClient.refetchQueries({ queryKey: ['history'] });
 
             // If this generation was queued for a story, add it now
-            const storyId = removePendingStoryAdd(id);
-            if (storyId) {
+            const pendingAdd = removePendingStoryAdd(id);
+            if (pendingAdd) {
+              const storyId = pendingAdd.storyId;
               apiClient
-                .addStoryItem(storyId, { generation_id: id })
+                .addStoryItem(storyId, {
+                  generation_id: id,
+                  start_time_ms: pendingAdd.startTimeMs,
+                  track: pendingAdd.track,
+                })
                 .then(() => {
                   queryClient.invalidateQueries({ queryKey: ['stories'] });
                   queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
