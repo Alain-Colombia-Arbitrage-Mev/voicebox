@@ -134,6 +134,28 @@ class GenerationRequest(BaseModel):
     )
 
 
+class MusicGenerationRequest(BaseModel):
+    """Request model for background music generation (MiniMax music API)."""
+
+    prompt: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Style/mood/scenario description, e.g. 'calm ambient meditation music, soft pads, 432hz, slow, peaceful'",
+    )
+    lyrics: Optional[str] = Field(
+        None,
+        max_length=3500,
+        description="Optional lyrics with [Verse]/[Chorus] tags. Omit for instrumental.",
+    )
+    instrumental: bool = Field(default=True, description="Generate without vocals")
+    model: Optional[str] = Field(
+        None,
+        pattern="^(music-3\\.0|music-3\\.0-free|music-2\\.6|music-2\\.6-free|music-1\\.5)$",
+        description="Music model; defaults to music-3.0 with free-tier fallback",
+    )
+
+
 class GenerationResponse(BaseModel):
     """Response model for voice generation."""
 

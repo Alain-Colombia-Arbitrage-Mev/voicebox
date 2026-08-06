@@ -53,6 +53,7 @@ import type {
   MCPClientBindingUpsert,
   MiniMaxSettings,
   MiniMaxSettingsUpdate,
+  MusicGenerationRequest,
   CloudLoginStartResponse,
   CloudStatus,
 } from './types';
@@ -290,6 +291,13 @@ class ApiClient {
       throw new Error(detail || `HTTP ${res.status}`);
     }
     return res.json();
+  }
+
+  async generateMusic(data: MusicGenerationRequest): Promise<GenerationResponse> {
+    return this.request<GenerationResponse>('/music/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   async toggleFavorite(generationId: string): Promise<{ is_favorited: boolean }> {

@@ -50,8 +50,11 @@ export function StoryContent() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const pendingCount = useGenerationStore((s) => s.pendingGenerationIds.size);
   const addPendingGeneration = useGenerationStore((s) => s.addPendingGeneration);
+  const addPendingStoryAdd = useGenerationStore((s) => s.addPendingStoryAdd);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [musicPrompt, setMusicPrompt] = useState('');
+  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
   const dragDepthRef = useRef(0);
 
   // Add generation popover state
@@ -260,6 +263,28 @@ export function StoryContent() {
     }
   };
 
+  const handleGenerateMusic = async () => {
+    if (!story || !musicPrompt.trim()) return;
+    setIsGeneratingMusic(true);
+    try {
+      const generation = await apiClient.generateMusic({ prompt: musicPrompt.trim() });
+      // Track for SSE progress; the story add fires when generation completes
+      addPendingGeneration(generation.id);
+      addPendingStoryAdd(generation.id, story.id);
+      toast({ title: t('storyContent.musicQueued') });
+      setMusicPrompt('');
+      setIsAddOpen(false);
+    } catch (error) {
+      toast({
+        title: t('storyContent.toast.musicFailed'),
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingMusic(false);
+    }
+  };
+
   const handleAddGeneration = (generationId: string) => {
     if (!story) return;
 
@@ -419,6 +444,28 @@ export function StoryContent() {
                   <Upload className="mr-2 h-4 w-4" />
                   {isImporting ? t('storyContent.importing') : t('storyContent.importAudio')}
                 </Button>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={t('storyContent.musicPromptPlaceholder')}
+                    value={musicPrompt}
+                    onChange={(e) => setMusicPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleGenerateMusic();
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 self-center"
+                    onClick={handleGenerateMusic}
+                    disabled={isGeneratingMusic || !musicPrompt.trim()}
+                  >
+                    <Music className="mr-2 h-4 w-4" />
+                    {isGeneratingMusic
+                      ? t('storyContent.musicGenerating')
+                      : t('storyContent.generateMusic')}
+                  </Button>
+                </div>
               </div>
               <div className="max-h-60 overflow-y-auto">
                 {availableGenerations.length === 0 ? (

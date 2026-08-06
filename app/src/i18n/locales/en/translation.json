@@ -641,8 +641,13 @@
       "exportFailed": "Failed to export audio",
       "addFailed": "Failed to add generation",
       "regenerateFailed": "Failed to regenerate",
-      "importFailed": "Failed to import audio"
-    }
+      "importFailed": "Failed to import audio",
+      "musicFailed": "Music generation failed"
+    },
+    "generateMusic": "Music",
+    "musicGenerating": "Generating…",
+    "musicQueued": "Music generation started — it will land on the timeline when ready",
+    "musicPromptPlaceholder": "Describe the music, e.g. calm ambient meditation, soft pads"
   },
   "history": {
     "empty": "No voice generations, yet…",

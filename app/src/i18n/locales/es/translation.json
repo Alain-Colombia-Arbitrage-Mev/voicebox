@@ -641,8 +641,13 @@
       "exportFailed": "Error al exportar el audio",
       "addFailed": "Error al añadir la generación",
       "regenerateFailed": "Error al regenerar",
-      "importFailed": "Error al importar el audio"
-    }
+      "importFailed": "Error al importar el audio",
+      "musicFailed": "No se pudo generar la música"
+    },
+    "generateMusic": "Música",
+    "musicGenerating": "Generando…",
+    "musicQueued": "Música en camino — se añadirá a la línea de tiempo al terminar",
+    "musicPromptPlaceholder": "Describe la música, p. ej. meditación ambiental calmada, pads suaves"
   },
   "history": {
     "empty": "Aún no hay generaciones de voz…",

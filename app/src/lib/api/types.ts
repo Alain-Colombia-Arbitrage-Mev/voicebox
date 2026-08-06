@@ -109,6 +109,16 @@ export interface GenerationRequest {
   effects_chain?: EffectConfig[];
 }
 
+export interface MusicGenerationRequest {
+  /** Style/mood description, e.g. "calm ambient meditation music, soft pads, slow, peaceful" */
+  prompt: string;
+  /** Optional lyrics with [Verse]/[Chorus] tags; omit for instrumental. */
+  lyrics?: string;
+  /** Generate without vocals (default true). */
+  instrumental?: boolean;
+  model?: 'music-3.0' | 'music-3.0-free' | 'music-2.6' | 'music-2.6-free' | 'music-1.5';
+}
+
 export interface GenerationVersionResponse {
   id: string;
   generation_id: string;
