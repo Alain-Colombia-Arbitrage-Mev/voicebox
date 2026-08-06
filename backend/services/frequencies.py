@@ -53,6 +53,13 @@ FREQUENCY_PRESETS: list[FrequencyPreset] = [
         tags=["solfeggio", "abundancia"],
     ),
     FrequencyPreset(
+        key="1111hz-portal",
+        name="1111 Hz — Portal de manifestación",
+        description="La frecuencia angelical 11:11: alineación espiritual, sincronicidad y manifestación de deseos.",
+        carrier_hz=1111.0,
+        tags=["angelical", "manifestacion"],
+    ),
+    FrequencyPreset(
         key="777hz-suerte",
         name="777 Hz — Buena suerte",
         description="Atrae la buena suerte, abre caminos y fomenta la fe en el éxito económico.",

@@ -20,7 +20,8 @@
     "audio": "Audio",
     "models": "Modelos",
     "settings": "Ajustes",
-    "updateBadge": "Actualizar"
+    "updateBadge": "Actualizar",
+    "sounds": "Sonidos"
   },
   "captures": {
     "title": "Capturas",
@@ -1318,6 +1319,42 @@
       "migrationFailed": "Error de migración",
       "migrationFailedGeneric": "Error al migrar los modelos",
       "migrationConnectionLost": "Se perdió la conexión durante la migración"
+    }
+  },
+  "soundbank": {
+    "title": "Banco de Sonidos",
+    "subtitle": "Paisajes sonoros de meditación y manifestación, frecuencias sanadoras y guías de respiración — genera, escucha y móntalos en tus historias.",
+    "generateSound": "Generar paisaje sonoro (MiniMax)",
+    "generateFrequency": "Generar frecuencia",
+    "customPromptPlaceholder": "O describe tu propio sonido…",
+    "frequencyPlaceholder": "Preset de frecuencia",
+    "freqModePure": "Solo tono",
+    "freqModeMusic": "+ Sonido IA",
+    "queued": "Generando — aparecerá en el banco al terminar",
+    "generateFailed": "No se pudo generar",
+    "generating": "Generando…",
+    "failed": "Falló",
+    "play": "Reproducir",
+    "addToStory": "Añadir a historia",
+    "addedToStory": "Añadido a la historia (pista de fondo)",
+    "addFailed": "No se pudo añadir a la historia",
+    "noStories": "Aún no hay historias",
+    "delete": "Eliminar",
+    "deleteFailed": "No se pudo eliminar",
+    "empty": "Nada por aquí todavía — genera tu primer sonido arriba.",
+    "sections": {
+      "sounds": "Paisajes sonoros",
+      "frequencies": "Frecuencias y respiración",
+      "imported": "Importados"
+    },
+    "recipes": {
+      "deepMeditation": "Meditación profunda (drone)",
+      "manifestation": "Manifestación (pads etéreos)",
+      "handpan1111": "Handpan + 1111 Hz",
+      "bowls": "Cuencos tibetanos",
+      "chakras": "Alineación de chakras",
+      "cleansing432": "Limpieza energética + 432 Hz",
+      "sleep": "Sueño profundo"
     }
   }
 }

@@ -20,7 +20,8 @@
     "audio": "Audio",
     "models": "Models",
     "settings": "Settings",
-    "updateBadge": "Update"
+    "updateBadge": "Update",
+    "sounds": "Sounds"
   },
   "captures": {
     "title": "Captures",
@@ -1318,6 +1319,42 @@
       "migrationFailed": "Migration failed",
       "migrationFailedGeneric": "Failed to migrate models",
       "migrationConnectionLost": "Lost connection during migration"
+    }
+  },
+  "soundbank": {
+    "title": "Sound Bank",
+    "subtitle": "Meditation & manifestation soundscapes, healing frequencies and breathing guides — generate, listen, and drop them into your stories.",
+    "generateSound": "Generate soundscape (MiniMax)",
+    "generateFrequency": "Generate frequency",
+    "customPromptPlaceholder": "Or describe your own sound…",
+    "frequencyPlaceholder": "Frequency preset",
+    "freqModePure": "Tone only",
+    "freqModeMusic": "+ AI sound",
+    "queued": "Generating — it will appear in the bank when ready",
+    "generateFailed": "Generation failed",
+    "generating": "Generating…",
+    "failed": "Failed",
+    "play": "Play",
+    "addToStory": "Add to story",
+    "addedToStory": "Added to story (background track)",
+    "addFailed": "Could not add to story",
+    "noStories": "No stories yet",
+    "delete": "Delete",
+    "deleteFailed": "Could not delete",
+    "empty": "Nothing here yet — generate your first sound above.",
+    "sections": {
+      "sounds": "Soundscapes",
+      "frequencies": "Frequencies & breathing",
+      "imported": "Imported"
+    },
+    "recipes": {
+      "deepMeditation": "Deep meditation (drone)",
+      "manifestation": "Manifestation (ethereal pads)",
+      "handpan1111": "Handpan + 1111 Hz",
+      "bowls": "Tibetan bowls",
+      "chakras": "Chakra alignment",
+      "cleansing432": "Energy cleansing + 432 Hz",
+      "sleep": "Deep sleep"
     }
   }
 }
