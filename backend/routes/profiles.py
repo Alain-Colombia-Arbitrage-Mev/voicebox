@@ -133,6 +133,34 @@ async def get_profile(
     return profile
 
 
+@router.post("/profiles/{profile_id}/copy-prosody", response_model=models.VoiceProfileResponse)
+async def copy_profile_prosody(
+    profile_id: str,
+    data: models.CopyProsodyRequest,
+    db: Session = Depends(get_db),
+):
+    """Copy delivery settings (emotion/speed/pitch, optionally effects and
+    personality) from another profile onto this one. Applies to future
+    generations with this profile."""
+    target = db.query(DBVoiceProfile).filter_by(id=profile_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    source = db.query(DBVoiceProfile).filter_by(id=data.source_profile_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source profile not found")
+
+    target.default_emotion = source.default_emotion
+    target.default_speed = source.default_speed
+    target.default_pitch = source.default_pitch
+    if data.include_effects:
+        target.effects_chain = source.effects_chain
+    if data.include_personality:
+        target.personality = source.personality
+    db.commit()
+    db.refresh(target)
+    return _profile_to_response(target)
+
+
 @router.post("/profiles/{profile_id}/analyze-prosody", response_model=models.ProsodyAnalysisResponse)
 async def analyze_profile_prosody(
     profile_id: str,

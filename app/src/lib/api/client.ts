@@ -302,6 +302,16 @@ class ApiClient {
     });
   }
 
+  async copyProfileProsody(
+    profileId: string,
+    data: { source_profile_id: string; include_effects?: boolean; include_personality?: boolean },
+  ): Promise<VoiceProfileResponse> {
+    return this.request<VoiceProfileResponse>(`/profiles/${profileId}/copy-prosody`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async getFrequencyPresets(): Promise<FrequencyPresetsResponse> {
     return this.request<FrequencyPresetsResponse>('/frequencies/presets');
   }

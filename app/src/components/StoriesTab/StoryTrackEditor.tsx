@@ -5,6 +5,7 @@ import {
   Copy,
   GalleryVerticalEnd,
   GripHorizontal,
+  Loader2,
   Minus,
   Pause,
   Play,
@@ -29,7 +30,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
@@ -43,6 +59,7 @@ import {
   useTrimStoryItem,
   useUpdateStoryItemVolume,
 } from '@/lib/hooks/useStories';
+import { useProfiles } from '@/lib/hooks/useProfiles';
 import { useStoryUndo } from '@/lib/hooks/useStoryUndo';
 import { cn } from '@/lib/utils/cn';
 import { useGenerationStore } from '@/stores/generationStore';
@@ -275,6 +292,107 @@ function TrackVolumePopover({
   );
 }
 
+// "Copy prosody from another profile" dialog — applies the source
+// profile's delivery (emotion/speed/pitch, optionally effects and
+// personality) onto the clicked clip's profile. Affects future
+// generations of that voice, not the already-rendered clip audio.
+function CopyProsodyDialog({
+  item,
+  onClose,
+}: {
+  item: StoryItemDetail;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: profiles } = useProfiles();
+  const [sourceId, setSourceId] = useState('');
+  const [includeEffects, setIncludeEffects] = useState(true);
+  const [includePersonality, setIncludePersonality] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
+
+  const candidates = (profiles ?? []).filter(
+    (p) => p.id !== item.profile_id && p.voice_type !== 'import',
+  );
+
+  const handleApply = async () => {
+    if (!sourceId) return;
+    setIsApplying(true);
+    try {
+      await apiClient.copyProfileProsody(item.profile_id, {
+        source_profile_id: sourceId,
+        include_effects: includeEffects,
+        include_personality: includePersonality,
+      });
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      toast({
+        title: 'Prosodia copiada',
+        description: `Las próximas generaciones de "${item.profile_name}" usarán esa entrega.`,
+      });
+      onClose();
+    } catch (error) {
+      toast({
+        title: 'No se pudo copiar la prosodia',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Copiar prosodia a "{item.profile_name}"</DialogTitle>
+          <DialogDescription>
+            Copia la entrega (emoción, velocidad, tono) de otro perfil. Se aplica a las
+            próximas generaciones de esta voz — el audio ya renderizado no cambia.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Select value={sourceId} onValueChange={setSourceId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Perfil de origen…" />
+            </SelectTrigger>
+            <SelectContent>
+              {candidates.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                  {p.default_emotion ? ` — ${p.default_emotion}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={includeEffects}
+              onCheckedChange={(v) => setIncludeEffects(v === true)}
+            />
+            Incluir efectos (eco/reverb del perfil)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={includePersonality}
+              onCheckedChange={(v) => setIncludePersonality(v === true)}
+            />
+            Incluir personalidad (intención al reescribir)
+          </label>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={handleApply} disabled={!sourceId || isApplying}>
+            {isApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Copiar prosodia'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface StoryTrackEditorProps {
   storyId: string;
   items: StoryItemDetail[];
@@ -427,6 +545,15 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     },
     [selectedClipId, storyId, setItemVersion, toast],
   );
+
+  // Right-click context menu on clips
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    item: StoryItemDetail;
+  } | null>(null);
+  // "Copy prosody from…" dialog for the right-clicked clip's profile
+  const [prosodyDialogItem, setProsodyDialogItem] = useState<StoryItemDetail | null>(null);
 
   // Sector (time-range) selection state — the "cut by sectors" tool
   const [sectorMode, setSectorMode] = useState(false);
@@ -1916,6 +2043,12 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                         !isDragging && 'transition-all duration-100',
                       )}
                       onClick={(e) => handleClipClick(e, item)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedClipId(item.id);
+                        setContextMenu({ x: e.clientX, y: e.clientY, item });
+                      }}
                       onMouseDown={(e) => {
                         // Sector mode: let the event bubble so range selection
                         // works across clips instead of starting a drag.
@@ -1993,6 +2126,73 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
             </div>
           </div>
         </div>
+
+        {/* Clip context menu (right-click) */}
+        {contextMenu && (
+          <>
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: click-away overlay */}
+            <div
+              className="fixed inset-0 z-40"
+              onMouseDown={() => setContextMenu(null)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu(null);
+              }}
+            />
+            <div
+              className="fixed z-50 min-w-[200px] rounded-md border bg-popover p-1 shadow-md"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+            >
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted flex items-center gap-2"
+                onClick={() => {
+                  setProsodyDialogItem(contextMenu.item);
+                  setContextMenu(null);
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" /> Copiar prosodia desde…
+              </button>
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted flex items-center gap-2"
+                onClick={() => {
+                  handleDuplicate();
+                  setContextMenu(null);
+                }}
+              >
+                <GalleryVerticalEnd className="h-3.5 w-3.5" /> Duplicar clip
+              </button>
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted flex items-center gap-2"
+                onClick={() => {
+                  handleSplit();
+                  setContextMenu(null);
+                }}
+              >
+                <Scissors className="h-3.5 w-3.5" /> Dividir en el cursor
+              </button>
+              <button
+                type="button"
+                className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted text-destructive flex items-center gap-2"
+                onClick={() => {
+                  handleDelete();
+                  setContextMenu(null);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Eliminar clip
+              </button>
+            </div>
+          </>
+        )}
+
+        {prosodyDialogItem && (
+          <CopyProsodyDialog
+            item={prosodyDialogItem}
+            onClose={() => setProsodyDialogItem(null)}
+          />
+        )}
 
         {/* Horizontal timeline scrollbar + zoom handles */}
         <div

@@ -55,6 +55,14 @@ class VoiceProfileResponse(BaseModel):
         from_attributes = True
 
 
+class CopyProsodyRequest(BaseModel):
+    """Copy delivery settings from another profile."""
+
+    source_profile_id: str
+    include_effects: bool = Field(default=True, description="Also copy the effects chain")
+    include_personality: bool = Field(default=False, description="Also copy the personality prompt")
+
+
 class ProsodyAnalysisResponse(BaseModel):
     """Result of capturing delivery prosody from a profile's reference audio.
 

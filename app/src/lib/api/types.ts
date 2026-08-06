@@ -1,7 +1,7 @@
 // API Types matching backend Pydantic models
 import type { LanguageCode } from '@/lib/constants/languages';
 
-export type VoiceType = 'cloned' | 'preset' | 'designed';
+export type VoiceType = 'cloned' | 'preset' | 'designed' | 'import';
 
 export interface VoiceProfileCreate {
   name: string;
@@ -29,6 +29,10 @@ export interface VoiceProfileResponse {
   design_prompt?: string;
   default_engine?: string;
   personality?: string | null;
+  /** Captured delivery prosody — generation defaults for prosody-capable engines. */
+  default_emotion?: string | null;
+  default_speed?: number | null;
+  default_pitch?: number | null;
   generation_count: number;
   sample_count: number;
   created_at: string;
