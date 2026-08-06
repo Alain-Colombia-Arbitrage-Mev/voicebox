@@ -26,6 +26,7 @@ def register_routers(app: FastAPI) -> None:
     from .events import router as events_router
     from .cloud import router as cloud_router
     from .music import router as music_router
+    from .frequencies import router as frequencies_router
 
     app.include_router(health_router)
     app.include_router(profiles_router)
@@ -48,3 +49,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(events_router)
     app.include_router(cloud_router)
     app.include_router(music_router)
+    app.include_router(frequencies_router)

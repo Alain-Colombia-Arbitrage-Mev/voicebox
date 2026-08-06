@@ -642,12 +642,15 @@
       "addFailed": "Failed to add generation",
       "regenerateFailed": "Failed to regenerate",
       "importFailed": "Failed to import audio",
-      "musicFailed": "Music generation failed"
+      "musicFailed": "Music generation failed",
+      "frequencyFailed": "Frequency generation failed"
     },
     "generateMusic": "Music",
     "musicGenerating": "Generating…",
     "musicQueued": "Music generation started — it will land on the timeline when ready",
-    "musicPromptPlaceholder": "Describe the music, e.g. calm ambient meditation, soft pads"
+    "musicPromptPlaceholder": "Describe the music, e.g. calm ambient meditation, soft pads",
+    "generateFrequency": "Generate frequency",
+    "frequencyPlaceholder": "Healing frequency (888 Hz, Schumann, Theta…)"
   },
   "history": {
     "empty": "No voice generations, yet…",

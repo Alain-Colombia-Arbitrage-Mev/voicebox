@@ -51,6 +51,8 @@ import type {
   MCPClientBinding,
   MCPClientBindingListResponse,
   MCPClientBindingUpsert,
+  FrequencyGenerationRequest,
+  FrequencyPresetsResponse,
   MiniMaxSettings,
   MiniMaxSettingsUpdate,
   MusicGenerationRequest,
@@ -295,6 +297,17 @@ class ApiClient {
 
   async generateMusic(data: MusicGenerationRequest): Promise<GenerationResponse> {
     return this.request<GenerationResponse>('/music/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getFrequencyPresets(): Promise<FrequencyPresetsResponse> {
+    return this.request<FrequencyPresetsResponse>('/frequencies/presets');
+  }
+
+  async generateFrequency(data: FrequencyGenerationRequest): Promise<GenerationResponse> {
+    return this.request<GenerationResponse>('/frequencies/generate', {
       method: 'POST',
       body: JSON.stringify(data),
     });

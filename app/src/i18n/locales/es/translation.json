@@ -642,12 +642,15 @@
       "addFailed": "Error al añadir la generación",
       "regenerateFailed": "Error al regenerar",
       "importFailed": "Error al importar el audio",
-      "musicFailed": "No se pudo generar la música"
+      "musicFailed": "No se pudo generar la música",
+      "frequencyFailed": "No se pudo generar la frecuencia"
     },
     "generateMusic": "Música",
     "musicGenerating": "Generando…",
     "musicQueued": "Música en camino — se añadirá a la línea de tiempo al terminar",
-    "musicPromptPlaceholder": "Describe la música, p. ej. meditación ambiental calmada, pads suaves"
+    "musicPromptPlaceholder": "Describe la música, p. ej. meditación ambiental calmada, pads suaves",
+    "generateFrequency": "Generar frecuencia",
+    "frequencyPlaceholder": "Frecuencia sanadora (888 Hz, Schumann, Theta…)"
   },
   "history": {
     "empty": "Aún no hay generaciones de voz…",

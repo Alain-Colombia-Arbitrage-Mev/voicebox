@@ -119,6 +119,30 @@ export interface MusicGenerationRequest {
   model?: 'music-3.0' | 'music-3.0-free' | 'music-2.6' | 'music-2.6-free' | 'music-1.5';
 }
 
+export interface FrequencyPreset {
+  key: string;
+  name: string;
+  description: string;
+  carrier_hz: number;
+  beat_hz: number;
+  mode: 'pure' | 'binaural' | 'isochronic';
+  tags: string[];
+}
+
+export interface FrequencyPresetsResponse {
+  presets: FrequencyPreset[];
+}
+
+export interface FrequencyGenerationRequest {
+  /** Preset key from /frequencies/presets, e.g. '888hz-prosperidad', 'schumann'. */
+  preset?: string;
+  carrier_hz?: number;
+  beat_hz?: number;
+  mode?: 'pure' | 'binaural' | 'isochronic';
+  duration_sec?: number;
+  volume?: number;
+}
+
 export interface GenerationVersionResponse {
   id: string;
   generation_id: string;

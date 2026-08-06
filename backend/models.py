@@ -156,6 +156,27 @@ class MusicGenerationRequest(BaseModel):
     )
 
 
+class FrequencyGenerationRequest(BaseModel):
+    """Request model for healing-frequency / brainwave tone synthesis."""
+
+    preset: Optional[str] = Field(
+        None, description="Preset key from GET /frequencies/presets (e.g. '888hz-prosperidad', 'schumann', 'theta-meditacion')"
+    )
+    carrier_hz: Optional[float] = Field(
+        None, ge=20, le=2000, description="Custom carrier frequency (used when no preset)"
+    )
+    beat_hz: Optional[float] = Field(
+        None, ge=0, le=100, description="Entrainment beat frequency (brainwave band); 0 = pure tone"
+    )
+    mode: Optional[str] = Field(
+        None,
+        pattern="^(pure|binaural|isochronic)$",
+        description="binaural needs headphones; isochronic works on speakers and mono mixes",
+    )
+    duration_sec: float = Field(default=300, ge=10, le=1800, description="Length in seconds (max 30 min)")
+    volume: float = Field(default=0.5, ge=0.05, le=1.0)
+
+
 class GenerationResponse(BaseModel):
     """Response model for voice generation."""
 

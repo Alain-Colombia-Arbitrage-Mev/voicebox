@@ -13,15 +13,23 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Download, Music, Plus, Upload } from 'lucide-react';
+import { AudioWaveform, Download, Music, Plus, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Loader from 'react-loaders';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
 import { useHistory } from '@/lib/hooks/useHistory';
@@ -55,6 +63,13 @@ export function StoryContent() {
   const [isImporting, setIsImporting] = useState(false);
   const [musicPrompt, setMusicPrompt] = useState('');
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
+  const [freqPreset, setFreqPreset] = useState('');
+  const [freqDuration, setFreqDuration] = useState('300');
+  const [isGeneratingFreq, setIsGeneratingFreq] = useState(false);
+  const { data: freqPresets } = useQuery({
+    queryKey: ['frequencyPresets'],
+    queryFn: () => apiClient.getFrequencyPresets(),
+  });
   const dragDepthRef = useRef(0);
 
   // Add generation popover state
@@ -285,6 +300,31 @@ export function StoryContent() {
     }
   };
 
+  const handleGenerateFrequency = async () => {
+    if (!story || !freqPreset) return;
+    setIsGeneratingFreq(true);
+    try {
+      // Local synthesis — returns a completed generation immediately
+      const generation = await apiClient.generateFrequency({
+        preset: freqPreset,
+        duration_sec: parseInt(freqDuration, 10),
+      });
+      await addStoryItem.mutateAsync({
+        storyId: story.id,
+        data: { generation_id: generation.id, track: 0 },
+      });
+      setIsAddOpen(false);
+    } catch (error) {
+      toast({
+        title: t('storyContent.toast.frequencyFailed'),
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingFreq(false);
+    }
+  };
+
   const handleAddGeneration = (generationId: string) => {
     if (!story) return;
 
@@ -464,6 +504,42 @@ export function StoryContent() {
                     {isGeneratingMusic
                       ? t('storyContent.musicGenerating')
                       : t('storyContent.generateMusic')}
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={freqPreset} onValueChange={setFreqPreset}>
+                    <SelectTrigger className="flex-1 h-9 text-xs">
+                      <SelectValue placeholder={t('storyContent.frequencyPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {freqPresets?.presets.map((p) => (
+                        <SelectItem key={p.key} value={p.key} className="text-xs">
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={freqDuration} onValueChange={setFreqDuration}>
+                    <SelectTrigger className="w-20 h-9 text-xs shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="60" className="text-xs">1 min</SelectItem>
+                      <SelectItem value="300" className="text-xs">5 min</SelectItem>
+                      <SelectItem value="600" className="text-xs">10 min</SelectItem>
+                      <SelectItem value="1200" className="text-xs">20 min</SelectItem>
+                      <SelectItem value="1800" className="text-xs">30 min</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 self-center"
+                    onClick={handleGenerateFrequency}
+                    disabled={isGeneratingFreq || !freqPreset}
+                    aria-label={t('storyContent.generateFrequency')}
+                  >
+                    <AudioWaveform className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
