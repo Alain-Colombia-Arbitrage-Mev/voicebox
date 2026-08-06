@@ -548,8 +548,14 @@ class MiniMaxTTSBackend:
         if emotion and emotion in MINIMAX_EMOTIONS:
             voice_setting["emotion"] = emotion
 
+        # whisper/fluent are 2.6-series exclusives — 2.8 rejects them with
+        # 2013. Swap the model for this request so ASMR just works.
+        model = settings["model"]
+        if emotion in ("whisper", "fluent") and not model.startswith("speech-2.6"):
+            model = "speech-2.6-hd"
+
         payload = {
-            "model": settings["model"],
+            "model": model,
             "text": text,
             "stream": False,
             "voice_setting": voice_setting,
