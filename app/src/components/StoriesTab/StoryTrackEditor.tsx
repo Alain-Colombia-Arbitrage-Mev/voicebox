@@ -462,6 +462,40 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     [items, storyId, pushUndo, queryClient, toast],
   );
 
+  // Arrow-key nudging of the selected clip. Rapid presses coalesce into a
+  // single undo entry so Cmd+Z reverts the whole burst, not one step.
+  const nudgeUndoAtRef = useRef(0);
+  const handleNudge = useCallback(
+    (deltaMs: number, deltaTrack: number, shiftKey: boolean) => {
+      if (!selectedClipId) return;
+      const item = items.find((i) => i.id === selectedClipId);
+      if (!item) return;
+
+      const now = Date.now();
+      if (now - nudgeUndoAtRef.current > 2000) {
+        pushUndo(storyId, items);
+      }
+      nudgeUndoAtRef.current = now;
+
+      let newTrack = item.track;
+      if (deltaTrack !== 0) {
+        const idx = tracks.indexOf(item.track);
+        const nextIdx = Math.max(0, Math.min(tracks.length - 1, idx + deltaTrack));
+        newTrack = tracks[nextIdx] ?? item.track;
+      }
+      const step = deltaMs * (shiftKey ? 10 : 1);
+      moveItem.mutate({
+        storyId,
+        itemId: item.id,
+        data: {
+          start_time_ms: Math.max(0, Math.round(item.start_time_ms + step)),
+          track: newTrack,
+        },
+      });
+    },
+    [selectedClipId, items, tracks, storyId, moveItem, pushUndo],
+  );
+
   const handleUndo = useCallback(async () => {
     try {
       if (await undoTimeline(storyId, items)) {
@@ -941,7 +975,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
 
   const handleSectorMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (!sectorMode) return;
+      if (!sectorMode || e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
       const ms = timelineXToMs(e.clientX);
@@ -1315,6 +1349,18 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
           e.preventDefault();
           handleDelete();
         }
+      } else if (e.key === 'ArrowLeft' && selectedClipId) {
+        e.preventDefault();
+        handleNudge(-100, 0, e.shiftKey);
+      } else if (e.key === 'ArrowRight' && selectedClipId) {
+        e.preventDefault();
+        handleNudge(100, 0, e.shiftKey);
+      } else if (e.key === 'ArrowUp' && selectedClipId) {
+        e.preventDefault();
+        handleNudge(0, -1, false);
+      } else if (e.key === 'ArrowDown' && selectedClipId) {
+        e.preventDefault();
+        handleNudge(0, 1, false);
       }
     };
 
@@ -1329,6 +1375,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     handlePlayPause,
     handleUndo,
     handleRedo,
+    handleNudge,
   ]);
 
   // Add global mouse listeners for trimming
@@ -1344,6 +1391,8 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
   }, [trimmingItem, handleTrimMove, handleTrimEnd]);
 
   const handleDragStart = (e: React.MouseEvent, item: StoryItemDetail) => {
+    // Left button only — right-click must reach the context menu handler
+    if (e.button !== 0) return;
     e.stopPropagation();
     if (!tracksRef.current) return;
 
@@ -1853,6 +1902,11 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
           onMouseUp={draggingItem ? handleDragEnd : undefined}
           onMouseLeave={draggingItem ? handleDragEnd : undefined}
           onMouseDown={sectorMode ? handleSectorMouseDown : undefined}
+          onContextMenu={(e) => {
+            // Keep the webview's native menu off the timeline; clip-level
+            // handlers stopPropagation before this fires for clips.
+            e.preventDefault();
+          }}
           onDragEnter={handleTimelineDragEnter}
           onDragOver={(e) => {
             if (e.dataTransfer.types.includes('Files')) e.preventDefault();
