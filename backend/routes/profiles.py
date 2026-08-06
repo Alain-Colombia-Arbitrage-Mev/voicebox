@@ -173,6 +173,12 @@ async def analyze_profile_prosody(
     profile.default_emotion = analysis.emotion
     profile.default_speed = stored_speed
     profile.default_pitch = analysis.pitch
+
+    # Reproduce the sample's production character (room reverb / echo) as
+    # the profile's default effects chain. Never clobber a chain the user
+    # configured by hand.
+    if analysis.effects_chain and not profile.effects_chain:
+        profile.effects_chain = _json.dumps(analysis.effects_chain)
     db.commit()
 
     return models.ProsodyAnalysisResponse(
@@ -185,6 +191,8 @@ async def analyze_profile_prosody(
         f0_std_semitones=analysis.f0_std_semitones,
         energy_cv=analysis.energy_cv,
         voiced_duration_sec=analysis.voiced_duration_sec,
+        reverb_tail_sec=analysis.reverb_tail_sec,
+        effects_chain=[models.EffectConfig(**e) for e in (analysis.effects_chain or [])],
     )
 
 

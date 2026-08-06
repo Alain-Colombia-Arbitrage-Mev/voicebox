@@ -294,7 +294,7 @@ class MiniMaxTTSBackend:
             return voice_prompt, True
 
         settings = self._get_settings()
-        voice_id = await self._clone_voice(settings, audio_path)
+        voice_id = await self._clone_voice(settings, audio_path, reference_text)
         self._registry_save(voice_id, sample_hash)
 
         voice_prompt = _build_prompt(voice_id)
@@ -302,12 +302,20 @@ class MiniMaxTTSBackend:
             cache_voice_prompt(cache_key, voice_prompt)
         return voice_prompt, False
 
-    async def _clone_voice(self, settings: dict, audio_path: str) -> str:
+    async def _clone_voice(
+        self, settings: dict, audio_path: str, reference_text: Optional[str] = None
+    ) -> str:
         import httpx
 
         # Deterministic-ish but unique id satisfying MiniMax constraints:
         # starts with a letter, 8-256 chars, [A-Za-z0-9_-], no trailing -/_.
         voice_id = "vb" + _VOICE_ID_RE.sub("", uuid.uuid4().hex)[:22]
+
+        # Delivery-mimicry prompt: a <8s slice of the reference plus its
+        # transcript makes the clone reproduce that exact interpretation —
+        # pacing, breaths, intensity — not just the timbre. Best-effort:
+        # cloning proceeds without it if slicing/transcription isn't possible.
+        prompt_slice = await self._build_clone_prompt_slice(audio_path)
 
         async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
             with open(audio_path, "rb") as f:
@@ -324,10 +332,35 @@ class MiniMaxTTSBackend:
             if not file_id:
                 raise RuntimeError("MiniMax file upload returned no file_id")
 
+            clone_payload: dict = {"file_id": file_id, "voice_id": voice_id}
+
+            if prompt_slice is not None:
+                slice_path, prompt_text = prompt_slice
+                try:
+                    with open(slice_path, "rb") as f:
+                        prompt_resp = await client.post(
+                            self._url(settings, "/v1/files/upload"),
+                            headers=self._headers(settings),
+                            data={"purpose": "prompt_audio"},
+                            files={"file": ("prompt.wav", f, "audio/wav")},
+                        )
+                    prompt_resp.raise_for_status()
+                    prompt_json = prompt_resp.json()
+                    self._check_base_resp(prompt_json, "prompt upload")
+                    prompt_file_id = (prompt_json.get("file") or {}).get("file_id")
+                    if prompt_file_id:
+                        clone_payload["clone_prompt"] = {
+                            "prompt_audio": prompt_file_id,
+                            "prompt_text": prompt_text,
+                        }
+                        logger.info("MiniMax clone using delivery prompt slice")
+                except Exception:
+                    logger.warning("Clone prompt upload failed — cloning without it", exc_info=True)
+
             clone_resp = await client.post(
                 self._url(settings, "/v1/voice_clone"),
                 headers={**self._headers(settings), "Content-Type": "application/json"},
-                json={"file_id": file_id, "voice_id": voice_id},
+                json=clone_payload,
             )
             clone_resp.raise_for_status()
             clone_json = clone_resp.json()
@@ -335,6 +368,55 @@ class MiniMaxTTSBackend:
 
         logger.info("MiniMax voice cloned: %s", voice_id)
         return voice_id
+
+    @staticmethod
+    async def _build_clone_prompt_slice(audio_path: str) -> Optional[tuple[str, str]]:
+        """Cut a ≤7.5s voiced slice of the reference and transcribe it locally.
+
+        Returns (slice_path, transcript) or None. Uses the local Whisper
+        model only if it's already downloaded — never triggers a download
+        from inside a cloning call.
+        """
+        import asyncio
+
+        try:
+            from ..services.transcribe import get_whisper_model
+
+            whisper = get_whisper_model()
+            checker = getattr(whisper, "_is_model_cached", None)
+            if checker is not None and not checker():
+                logger.info("Whisper not downloaded — skipping clone prompt slice")
+                return None
+
+            def _slice() -> Optional[str]:
+                import librosa
+                import soundfile as sf
+
+                from .. import config
+
+                y, sr = librosa.load(audio_path, sr=24000, mono=True)
+                y, _ = librosa.effects.trim(y, top_db=30)
+                max_n = int(7.5 * sr)
+                if len(y) < sr * 2:
+                    return None  # too short to be a useful delivery example
+                seg = y[:max_n]
+                out = config.get_cache_dir() / f"clone_prompt_{uuid.uuid4().hex[:8]}.wav"
+                out.parent.mkdir(parents=True, exist_ok=True)
+                sf.write(str(out), seg, sr)
+                return str(out)
+
+            slice_path = await asyncio.to_thread(_slice)
+            if slice_path is None:
+                return None
+
+            transcript = await whisper.transcribe(slice_path)
+            transcript = (transcript or "").strip()
+            if not transcript:
+                return None
+            return slice_path, transcript
+        except Exception:
+            logger.warning("Could not build clone prompt slice", exc_info=True)
+            return None
 
     async def combine_voice_prompts(
         self,
@@ -402,7 +484,9 @@ class MiniMaxTTSBackend:
                 voice_id,
             )
             self._registry_delete(voice_id)
-            new_voice_id = await self._clone_voice(settings, voice_prompt["ref_audio"])
+            new_voice_id = await self._clone_voice(
+                settings, voice_prompt["ref_audio"], voice_prompt.get("ref_text")
+            )
             sample_hash = voice_prompt.get("sample_hash")
             if sample_hash:
                 self._registry_save(new_voice_id, sample_hash)

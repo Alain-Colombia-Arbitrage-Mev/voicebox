@@ -43,6 +43,11 @@ class ProsodyAnalysis:
     f0_std_semitones: float
     energy_cv: float
     voiced_duration_sec: float
+    # Production character: reverb tail measured after speech offsets.
+    # 0.0 = dry studio booth; >0.25s suggests audible room/echo treatment.
+    reverb_tail_sec: float = 0.0
+    # Suggested effects chain reproducing the measured room (empty = dry)
+    effects_chain: list = None  # type: ignore[assignment]
 
 
 def count_syllables(text: str) -> int:
@@ -107,6 +112,8 @@ def analyze_sample(audio_path: str, reference_text: str) -> ProsodyAnalysis:
 
     emotion = _infer_emotion(rate_ratio, pause_ratio, f0_std_st, energy_cv)
 
+    reverb_tail = _estimate_reverb_tail(y_trimmed, sr, intervals)
+
     return ProsodyAnalysis(
         speed=speed,
         emotion=emotion,
@@ -116,7 +123,78 @@ def analyze_sample(audio_path: str, reference_text: str) -> ProsodyAnalysis:
         f0_std_semitones=round(f0_std_st, 2),
         energy_cv=round(energy_cv, 2),
         voiced_duration_sec=round(voiced_duration, 2),
+        reverb_tail_sec=round(reverb_tail, 3),
+        effects_chain=_effects_for_tail(reverb_tail),
     )
+
+
+def _estimate_reverb_tail(y: np.ndarray, sr: int, intervals: np.ndarray) -> float:
+    """Median time for energy to decay 20 dB after speech offsets.
+
+    Studio processing (reverb/echo) shows up as long tails after each
+    phrase; a dry booth recording decays almost instantly. Only offsets
+    followed by a real gap (>0.4 s) are measured so coarticulation
+    doesn't pollute the estimate.
+    """
+    import librosa
+
+    if len(intervals) == 0:
+        return 0.0
+
+    frame = 512
+    rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=frame)[0]
+    times = np.arange(len(rms)) * frame / sr
+
+    tails: list[float] = []
+    for idx, (start, end) in enumerate(intervals):
+        gap_end = intervals[idx + 1][0] / sr if idx + 1 < len(intervals) else len(y) / sr
+        offset_t = end / sr
+        if gap_end - offset_t < 0.4:
+            continue
+
+        mask = (times >= offset_t) & (times < gap_end)
+        seg = rms[mask]
+        if len(seg) < 3 or seg[0] <= 0:
+            continue
+        target = seg[0] * 10 ** (-20 / 20)  # -20 dB from the offset level
+        below = np.where(seg <= target)[0]
+        if len(below) > 0:
+            tails.append(float(below[0]) * frame / sr)
+        else:
+            tails.append(float(gap_end - offset_t))
+
+    return float(np.median(tails)) if tails else 0.0
+
+
+def _effects_for_tail(tail_sec: float) -> list:
+    """Map a measured reverb tail onto a matching pedalboard chain."""
+    if tail_sec < 0.25:
+        return []  # dry recording — no effects to reproduce
+    room_size = float(np.clip(tail_sec / 1.2, 0.2, 0.9))
+    wet = float(np.clip(0.15 + tail_sec * 0.25, 0.15, 0.5))
+    chain = [
+        {
+            "type": "reverb",
+            "enabled": True,
+            "params": {
+                "room_size": round(room_size, 2),
+                "damping": 0.5,
+                "wet_level": round(wet, 2),
+                "dry_level": 0.6,
+                "width": 1.0,
+            },
+        }
+    ]
+    # A very long tail usually means a distinct echo on top of the room
+    if tail_sec > 0.8:
+        chain.append(
+            {
+                "type": "delay",
+                "enabled": True,
+                "params": {"delay_seconds": 0.25, "feedback": 0.25, "mix": 0.2},
+            }
+        )
+    return chain
 
 
 def _infer_emotion(

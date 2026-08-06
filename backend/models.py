@@ -71,6 +71,8 @@ class ProsodyAnalysisResponse(BaseModel):
     f0_std_semitones: float
     energy_cv: float
     voiced_duration_sec: float
+    reverb_tail_sec: float = 0.0
+    effects_chain: List["EffectConfig"] = []
 
 
 class ProfileSampleCreate(BaseModel):
