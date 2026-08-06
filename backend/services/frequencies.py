@@ -134,6 +134,27 @@ FREQUENCY_PRESETS: list[FrequencyPreset] = [
         mode="binaural",
         tags=["banda", "gamma"],
     ),
+    # Breathing therapy: the isochronic gate at breathing rate turns the
+    # carrier into soft swells that pace inhale/exhale — a guide sound,
+    # not music. 0.1 Hz = 10 s cycle = 6 breaths/min (coherent breathing).
+    FrequencyPreset(
+        key="respiracion-coherente",
+        name="Respiración coherente — 6/min",
+        description="Oleadas suaves de 10 segundos que guían la inhalación y exhalación (respiración coherente).",
+        carrier_hz=432.0,
+        beat_hz=0.1,
+        mode="isochronic",
+        tags=["respiracion", "terapia"],
+    ),
+    FrequencyPreset(
+        key="respiracion-profunda",
+        name="Respiración profunda — 4/min",
+        description="Ciclos de 15 segundos para respiración muy lenta y meditación profunda.",
+        carrier_hz=396.0,
+        beat_hz=1.0 / 15.0,
+        mode="isochronic",
+        tags=["respiracion", "terapia"],
+    ),
 ]
 
 _PRESETS_BY_KEY = {p.key: p for p in FREQUENCY_PRESETS}
