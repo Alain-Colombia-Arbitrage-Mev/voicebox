@@ -26,20 +26,34 @@ FREE_MUSIC_MODEL = "music-3.0-free"
 
 
 async def _call_music_api(settings: dict, payload: dict) -> bytes:
-    """POST /v1/music_generation and return the decoded audio bytes."""
+    """POST /v1/music_generation and return the decoded audio bytes.
+
+    Renders normally take 1-4 minutes but spike well past 10 under load,
+    so the read timeout is generous and a timed-out request gets one
+    retry before giving up.
+    """
     import httpx
 
     from ..backends.minimax_backend import MiniMaxTTSBackend
 
     backend = MiniMaxTTSBackend()
-    # Music renders can take several minutes on the non-streaming endpoint.
-    async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=30.0)) as client:
-        resp = await client.post(
-            backend._url(settings, "/v1/music_generation"),
-            headers={**backend._headers(settings), "Content-Type": "application/json"},
-            json=payload,
-        )
-    resp.raise_for_status()
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(1200.0, connect=30.0)) as client:
+                resp = await client.post(
+                    backend._url(settings, "/v1/music_generation"),
+                    headers={**backend._headers(settings), "Content-Type": "application/json"},
+                    json=payload,
+                )
+            resp.raise_for_status()
+            break
+        except (httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+            last_error = e
+            logger.warning("MiniMax music render timed out (attempt %d/2)", attempt + 1)
+    else:
+        raise RuntimeError("MiniMax music generation timed out after retry") from last_error
+
     body = resp.json()
     backend._check_base_resp(body, "music generation")
 
