@@ -254,12 +254,27 @@ async def add_profile_sample(
         tmp_path = tmp.name
 
     try:
+        # Users routinely type a *description* ("male, calm, echo voice")
+        # where the engine needs the *transcript* — which cripples clone
+        # delivery fidelity and prosody capture. When the provided text is
+        # clearly not a transcript (too short for the audio's speech
+        # content), transcribe the sample with the local Whisper model.
+        resolved_text = await _resolve_reference_text(tmp_path, reference_text)
+
         sample = await profiles.add_profile_sample(
             profile_id,
             tmp_path,
-            reference_text,
+            resolved_text,
             db,
         )
+
+        # Capture delivery prosody automatically so cloned profiles pick up
+        # emotion/effects defaults without a manual analyze call. Best-effort.
+        try:
+            await _auto_capture_prosody(profile_id, db)
+        except Exception:
+            logger.debug("Auto prosody capture failed", exc_info=True)
+
         return sample
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -267,6 +282,74 @@ async def add_profile_sample(
         raise HTTPException(status_code=500, detail=f"Failed to process audio file: {str(e)}")
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+
+
+async def _resolve_reference_text(audio_path: str, provided_text: str) -> str:
+    """Return the transcript for a sample, auto-transcribing when the
+    user-provided text is clearly a description rather than a transcript.
+
+    Heuristic: natural speech runs ~10-18 chars/second; text much shorter
+    than the audio implies (under ~4 chars/s of file duration) can't be a
+    transcript. Only replaces text when Whisper is already downloaded and
+    produces something substantial; otherwise the provided text stands.
+    """
+    import asyncio
+
+    provided = (provided_text or "").strip()
+    try:
+        import soundfile as sf
+
+        duration = sf.info(audio_path).duration
+    except Exception:
+        return provided
+
+    if duration <= 0 or len(provided) >= duration * 4:
+        return provided  # plausibly a transcript — keep the user's text
+
+    try:
+        from ..services.transcribe import get_whisper_model
+
+        whisper = get_whisper_model()
+        checker = getattr(whisper, "_is_model_cached", None)
+        whisper_size = getattr(whisper, "model_size", None) or "base"
+        if checker is not None and not checker(whisper_size):
+            return provided
+
+        transcript = (await whisper.transcribe(audio_path) or "").strip()
+        if len(transcript) > max(20, len(provided)):
+            logger.info("Sample text looked like a description — using Whisper transcript")
+            return transcript[:990]
+    except Exception:
+        logger.debug("Auto-transcription failed; keeping provided text", exc_info=True)
+    return provided
+
+
+async def _auto_capture_prosody(profile_id: str, db: Session) -> None:
+    """Run prosody/effects capture for cloned profiles after a sample upload."""
+    import asyncio
+
+    from ..database import ProfileSample as DBProfileSample
+    from ..services import prosody as prosody_service
+
+    profile = db.query(DBVoiceProfile).filter_by(id=profile_id).first()
+    if not profile or (profile.voice_type or "cloned") != "cloned":
+        return
+    sample = db.query(DBProfileSample).filter_by(profile_id=profile_id).first()
+    if not sample:
+        return
+    audio_path = config.resolve_storage_path(sample.audio_path)
+    if audio_path is None or not audio_path.exists():
+        return
+
+    analysis = await asyncio.to_thread(
+        prosody_service.analyze_sample, str(audio_path), sample.reference_text
+    )
+    profile.default_emotion = analysis.emotion
+    profile.default_speed = None  # clones carry their own pacing
+    profile.default_pitch = 0
+    if analysis.effects_chain and not profile.effects_chain:
+        profile.effects_chain = _json.dumps(analysis.effects_chain)
+    db.commit()
 
 
 @router.get("/profiles/{profile_id}/samples", response_model=list[models.ProfileSampleResponse])
