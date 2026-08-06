@@ -31,6 +31,7 @@ from pedalboard import (
     HighpassFilter,
     LowpassFilter,
     Delay,
+    NoiseGate,
     PitchShift,
 )
 
@@ -81,6 +82,23 @@ EFFECT_REGISTRY: Dict[str, Dict[str, Any]] = {
             },
             "feedback": {"default": 0.3, "min": 0.0, "max": 0.95, "step": 0.01, "description": "Feedback amount"},
             "mix": {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01, "description": "Wet/dry mix"},
+        },
+    },
+    "noise_gate": {
+        "cls": NoiseGate,
+        "label": "Noise Gate",
+        "description": "Silences audio below a threshold — tames room-echo tails between phrases.",
+        "params": {
+            "threshold_db": {
+                "default": -40.0,
+                "min": -80.0,
+                "max": 0.0,
+                "step": 1.0,
+                "description": "Level below which audio is gated (dB)",
+            },
+            "ratio": {"default": 4.0, "min": 1.0, "max": 20.0, "step": 0.5, "description": "Gate ratio"},
+            "attack_ms": {"default": 1.0, "min": 0.1, "max": 100.0, "step": 0.1, "description": "Attack (ms)"},
+            "release_ms": {"default": 120.0, "min": 10.0, "max": 1000.0, "step": 10.0, "description": "Release (ms)"},
         },
     },
     "compressor": {

@@ -102,6 +102,12 @@ LANGUAGE_BOOST_MAP = {
 
 _VOICE_ID_RE = re.compile(r"[^A-Za-z0-9_-]")
 
+# Pause markers like <#1.5#> are handled locally: the text is split on
+# them, each phrase is synthesized separately, and exact silences are
+# inserted between. MiniMax never sees the markers — cloned voices were
+# reading them aloud / paraphrasing around them.
+_PAUSE_MARKER_RE = re.compile(r"\s*<#(\d+(?:\.\d+)?)#>\s*")
+
 # MiniMax status codes that mean "this voice_id no longer exists remotely"
 # (expired unused clone, account cleanup, region switch). Triggers re-clone.
 _VOICE_GONE_CODES = {2054}
@@ -463,6 +469,28 @@ class MiniMaxTTSBackend:
             raise RuntimeError("MiniMax voice prompt is missing a voice_id")
 
         settings = self._get_settings()
+
+        # Local pause-marker handling: split on <#x#>, synthesize each
+        # phrase, join with exact silences.
+        parts = _PAUSE_MARKER_RE.split(text)
+        if len(parts) > 1:
+            segments: list[np.ndarray] = []
+            sample_rate = MINIMAX_SAMPLE_RATE
+            for i, part in enumerate(parts):
+                if i % 2 == 1:  # odd indexes are the captured pause durations
+                    pause_sec = min(float(part), 30.0)
+                    segments.append(np.zeros(int(pause_sec * sample_rate), dtype=np.float32))
+                    continue
+                if not part.strip():
+                    continue
+                seg_audio, sample_rate = await self.generate(
+                    part.strip(), voice_prompt, language, seed, instruct,
+                    emotion=emotion, speed=speed, pitch=pitch,
+                )
+                segments.append(np.asarray(seg_audio, dtype=np.float32))
+            if not segments:
+                raise RuntimeError("Pause-marker text contained no speakable segments")
+            return np.concatenate(segments), sample_rate
 
         try:
             return await self._generate_with_voice(
