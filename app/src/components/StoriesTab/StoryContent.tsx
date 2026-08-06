@@ -41,6 +41,7 @@ import {
   useStory,
 } from '@/lib/hooks/useStories';
 import { useStoryPlayback } from '@/lib/hooks/useStoryPlayback';
+import { useStoryUndo } from '@/lib/hooks/useStoryUndo';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useStoryStore } from '@/stores/storyStore';
 import { SortableStoryChatItem } from './StoryChatItem';
@@ -59,6 +60,7 @@ export function StoryContent() {
   const pendingCount = useGenerationStore((s) => s.pendingGenerationIds.size);
   const addPendingGeneration = useGenerationStore((s) => s.addPendingGeneration);
   const addPendingStoryAdd = useGenerationStore((s) => s.addPendingStoryAdd);
+  const pushUndo = useStoryUndo((s) => s.push);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [musicPrompt, setMusicPrompt] = useState('');
@@ -256,6 +258,7 @@ export function StoryContent() {
     setIsImporting(true);
     try {
       const generation = await apiClient.importAudio(file);
+      pushUndo(story.id, story.items);
       await addStoryItem.mutateAsync({
         storyId: story.id,
         data: { generation_id: generation.id },
@@ -321,6 +324,7 @@ export function StoryContent() {
         duration_sec: parseInt(freqDuration, 10),
         volume: 0.3,
       });
+      pushUndo(story.id, story.items);
       await addStoryItem.mutateAsync({
         storyId: story.id,
         data: { generation_id: generation.id, start_time_ms: 0, track: nextBackgroundTrack() },
@@ -340,6 +344,7 @@ export function StoryContent() {
   const handleAddGeneration = (generationId: string) => {
     if (!story) return;
 
+    pushUndo(story.id, story.items);
     addStoryItem.mutate(
       {
         storyId: story.id,

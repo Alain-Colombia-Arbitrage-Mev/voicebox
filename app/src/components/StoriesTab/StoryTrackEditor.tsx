@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   Copy,
@@ -7,10 +8,12 @@ import {
   Pause,
   Play,
   Plus,
+  Redo2,
   RotateCcw,
   Scissors,
   Square,
   Trash2,
+  Undo2,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -37,6 +40,7 @@ import {
   useTrimStoryItem,
   useUpdateStoryItemVolume,
 } from '@/lib/hooks/useStories';
+import { useStoryUndo } from '@/lib/hooks/useStoryUndo';
 import { cn } from '@/lib/utils/cn';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useStoryStore } from '@/stores/storyStore';
@@ -230,11 +234,50 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
   const moveItem = useMoveStoryItem();
   const trimItem = useTrimStoryItem();
   const splitItem = useSplitStoryItem();
+  const queryClient = useQueryClient();
+  const pushUndo = useStoryUndo((s) => s.push);
+  const undoTimeline = useStoryUndo((s) => s.undo);
+  const redoTimeline = useStoryUndo((s) => s.redo);
+  const isRestoring = useStoryUndo((s) => s.isRestoring);
+  const undoDepth = useStoryUndo((s) => (s.undoStacks.get(storyId) ?? []).length);
+  const redoDepth = useStoryUndo((s) => (s.redoStacks.get(storyId) ?? []).length);
+
   const duplicateItem = useDuplicateStoryItem();
   const removeItem = useRemoveStoryItem();
   const setItemVersion = useSetStoryItemVersion();
   const updateVolume = useUpdateStoryItemVolume();
   const { toast } = useToast();
+
+  const handleUndo = useCallback(async () => {
+    try {
+      if (await undoTimeline(storyId, items)) {
+        queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
+      }
+    } catch (error) {
+      toast({
+        title: 'Undo failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+      queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
+    }
+  }, [undoTimeline, storyId, items, queryClient, toast]);
+
+  const handleRedo = useCallback(async () => {
+    try {
+      if (await redoTimeline(storyId, items)) {
+        queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
+      }
+    } catch (error) {
+      toast({
+        title: 'Redo failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+      queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
+    }
+  }, [redoTimeline, storyId, items, queryClient, toast]);
+
   const addPendingGeneration = useGenerationStore((s) => s.addPendingGeneration);
   // User-added empty tracks. Live in component state because a track only
   // earns its keep once a clip lands on it — no need to persist an unused
@@ -657,6 +700,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
 
     // Only update if values changed
     if (finalTrimStart !== initialTrimStart || finalTrimEnd !== initialTrimEnd) {
+      pushUndo(storyId, items);
       trimItem.mutate(
         {
           storyId,
@@ -682,7 +726,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     setTrimSide(null);
     setTempTrimValues(null);
     trimStartItemRef.current = null;
-  }, [trimmingItem, trimSide, tempTrimValues, storyId, trimItem, toast]);
+  }, [trimmingItem, trimSide, tempTrimValues, storyId, trimItem, toast, items, pushUndo]);
 
   const handleSplit = useCallback(() => {
     if (!selectedClipId || splitItem.isPending) return;
@@ -705,6 +749,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
       return;
     }
 
+    pushUndo(storyId, items);
     splitItem.mutate(
       {
         storyId,
@@ -733,11 +778,13 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     splitItem,
     toast,
     setSelectedClipId,
+    pushUndo,
   ]);
 
   const handleDuplicate = useCallback(() => {
     if (!selectedClipId) return;
 
+    pushUndo(storyId, items);
     duplicateItem.mutate(
       {
         storyId,
@@ -753,11 +800,12 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         },
       },
     );
-  }, [selectedClipId, storyId, duplicateItem, toast]);
+  }, [selectedClipId, storyId, duplicateItem, toast, items, pushUndo]);
 
   const handleDelete = useCallback(() => {
     if (!selectedClipId) return;
 
+    pushUndo(storyId, items);
     removeItem.mutate(
       {
         storyId,
@@ -776,7 +824,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         },
       },
     );
-  }, [selectedClipId, storyId, removeItem, toast, setSelectedClipId]);
+  }, [selectedClipId, storyId, removeItem, toast, setSelectedClipId, items, pushUndo]);
 
   const handleRegenerate = useCallback(async () => {
     if (!selectedItem) return;
@@ -800,7 +848,17 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         return;
       }
 
-      if (e.key === ' ') {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        handleRedo();
+      } else if (e.key === ' ') {
         e.preventDefault();
         handlePlayPause();
       } else if (e.key === 'Escape') {
@@ -832,6 +890,8 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     handleDelete,
     setSelectedClipId,
     handlePlayPause,
+    handleUndo,
+    handleRedo,
   ]);
 
   // Add global mouse listeners for trimming
@@ -910,6 +970,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
 
     // Check if position changed
     if (newTimeMs !== item.start_time_ms || newTrack !== item.track) {
+      pushUndo(storyId, items);
       moveItem.mutate(
         {
           storyId,
@@ -932,7 +993,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     }
 
     setDraggingItem(null);
-  }, [draggingItem, dragPosition, items, tracks, pixelsToMs, storyId, moveItem, toast]);
+  }, [draggingItem, dragPosition, items, tracks, pixelsToMs, storyId, moveItem, toast, pushUndo]);
 
   // Get track index for rendering
   const getTrackIndex = (trackNumber: number) => tracks.indexOf(trackNumber);
@@ -1123,6 +1184,28 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
             <span className="text-xs text-muted-foreground tabular-nums ml-2">
               {formatTime(currentTimeMs)} / {formatTime(totalDurationMs)}
             </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 ml-2"
+              onClick={handleUndo}
+              disabled={undoDepth === 0 || isRestoring}
+              title="Undo (Cmd/Ctrl+Z)"
+              aria-label="Undo"
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleRedo}
+              disabled={redoDepth === 0 || isRestoring}
+              title="Redo (Cmd/Ctrl+Shift+Z)"
+              aria-label="Redo"
+            >
+              <Redo2 className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Clip editing controls - center */}
@@ -1153,7 +1236,8 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                   storyId={storyId}
                   itemId={selectedItem.id}
                   volume={selectedItem.volume}
-                  onChange={(value) =>
+                  onChange={(value) => {
+                    pushUndo(storyId, items);
                     updateVolume.mutate(
                       {
                         storyId,
@@ -1169,8 +1253,8 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                           });
                         },
                       },
-                    )
-                  }
+                    );
+                  }}
                 />
               )}
               <Button
