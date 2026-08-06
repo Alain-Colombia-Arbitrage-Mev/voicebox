@@ -289,6 +289,27 @@ class MiniMaxSettings(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class MiniMaxVoice(Base):
+    """Registry of voices cloned on MiniMax.
+
+    A cloned voice_id lives on MiniMax's side; locally we only hold the
+    reference to it. This table is the durable source of truth (the torch
+    prompt cache can be wiped by "clear cache"), keyed by the sample hash
+    so re-cloning is avoided across cache clears. ``last_used_at`` drives
+    the keepalive that prevents remote expiration: MiniMax retains unused
+    voices for only ~7 days, so voices idle for several days get touched
+    with a minimal synthesis request on startup.
+    """
+
+    __tablename__ = "minimax_voices"
+
+    voice_id = Column(String, primary_key=True)  # remote MiniMax voice id
+    sample_hash = Column(String, nullable=False, index=True)  # cache key of (audio, text)
+    profile_id = Column(String, ForeignKey("profiles.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, default=datetime.utcnow)
+
+
 class MCPClientBinding(Base):
     """Per-MCP-client settings (voice profile, engine, personality default).
 

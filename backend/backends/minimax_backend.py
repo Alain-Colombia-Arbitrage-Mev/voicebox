@@ -102,6 +102,18 @@ LANGUAGE_BOOST_MAP = {
 
 _VOICE_ID_RE = re.compile(r"[^A-Za-z0-9_-]")
 
+# MiniMax status codes that mean "this voice_id no longer exists remotely"
+# (expired unused clone, account cleanup, region switch). Triggers re-clone.
+_VOICE_GONE_CODES = {2054}
+
+
+class MiniMaxAPIError(RuntimeError):
+    """MiniMax base_resp error carrying the numeric status code."""
+
+    def __init__(self, code: int, message: str):
+        super().__init__(message)
+        self.code = code
+
 
 class MiniMaxTTSBackend:
     """MiniMax Speech cloud backend — remote TTS + instant voice cloning."""
@@ -154,7 +166,65 @@ class MiniMaxTTSBackend:
             msg = base.get("status_msg") or "unknown error"
             if code == 1004:
                 msg = "authentication failed — check your MiniMax API key"
-            raise RuntimeError(f"MiniMax {action} failed ({code}): {msg}")
+            raise MiniMaxAPIError(code, f"MiniMax {action} failed ({code}): {msg}")
+
+    # ── Clone registry (SQLite) ───────────────────────────────────────
+    # The torch prompt cache can be wiped by "clear cache"; the registry
+    # row survives, so the same sample never gets re-cloned (and re-billed).
+
+    @staticmethod
+    def _registry_lookup(sample_hash: str) -> Optional[str]:
+        from ..database import MiniMaxVoice, get_db
+
+        db = next(get_db())
+        try:
+            row = db.query(MiniMaxVoice).filter_by(sample_hash=sample_hash).first()
+            return row.voice_id if row else None
+        finally:
+            db.close()
+
+    @staticmethod
+    def _registry_save(voice_id: str, sample_hash: str) -> None:
+        from ..database import MiniMaxVoice, get_db
+
+        db = next(get_db())
+        try:
+            if not db.query(MiniMaxVoice).filter_by(voice_id=voice_id).first():
+                db.add(MiniMaxVoice(voice_id=voice_id, sample_hash=sample_hash))
+                db.commit()
+        finally:
+            db.close()
+
+    @staticmethod
+    def _registry_delete(voice_id: str) -> None:
+        from ..database import MiniMaxVoice, get_db
+
+        db = next(get_db())
+        try:
+            db.query(MiniMaxVoice).filter_by(voice_id=voice_id).delete()
+            db.commit()
+        finally:
+            db.close()
+
+    @staticmethod
+    def _registry_touch(voice_id: str) -> None:
+        """Record that the voice was just used — feeds the anti-expiration
+        keepalive. Best-effort: never let bookkeeping break a generation."""
+        from datetime import datetime
+
+        from ..database import MiniMaxVoice, get_db
+
+        try:
+            db = next(get_db())
+            try:
+                row = db.query(MiniMaxVoice).filter_by(voice_id=voice_id).first()
+                if row:
+                    row.last_used_at = datetime.utcnow()
+                    db.commit()
+            finally:
+                db.close()
+        except Exception:
+            logger.debug("Failed to touch minimax voice %s", voice_id, exc_info=True)
 
     # ── Model lifecycle (no-ops for a remote engine) ──────────────────
 
@@ -189,21 +259,45 @@ class MiniMaxTTSBackend:
         The clone happens once per (audio, text) pair; afterwards the
         voice_id is cached locally like any other voice prompt.
         """
-        cache_key = ("minimax_" + get_cache_key(audio_path, reference_text)) if use_cache else None
+        sample_hash = get_cache_key(audio_path, reference_text)
+        cache_key = ("minimax_" + sample_hash) if use_cache else None
+
+        def _build_prompt(voice_id: str) -> dict:
+            # ref_audio/ref_text ride along so generate() can re-clone and
+            # self-heal if the remote voice_id has expired or been deleted.
+            return {
+                "voice_type": "cloned_remote",
+                "engine": "minimax",
+                "minimax_voice_id": voice_id,
+                "sample_hash": sample_hash,
+                "ref_audio": audio_path,
+                "ref_text": reference_text,
+            }
 
         if cache_key:
             cached = get_cached_voice_prompt(cache_key)
             if isinstance(cached, dict) and cached.get("minimax_voice_id"):
-                return cached, True
+                voice_prompt = _build_prompt(cached["minimax_voice_id"])
+                # Backfill the registry for clones made before it existed
+                self._registry_save(cached["minimax_voice_id"], sample_hash)
+                if cached != voice_prompt:
+                    cache_voice_prompt(cache_key, voice_prompt)
+                return voice_prompt, True
+
+        # Registry survives cache clears — reuse the remote clone instead of
+        # re-cloning (and re-billing) the same sample.
+        registered = self._registry_lookup(sample_hash)
+        if registered:
+            voice_prompt = _build_prompt(registered)
+            if cache_key:
+                cache_voice_prompt(cache_key, voice_prompt)
+            return voice_prompt, True
 
         settings = self._get_settings()
         voice_id = await self._clone_voice(settings, audio_path)
+        self._registry_save(voice_id, sample_hash)
 
-        voice_prompt = {
-            "voice_type": "cloned_remote",
-            "engine": "minimax",
-            "minimax_voice_id": voice_id,
-        }
+        voice_prompt = _build_prompt(voice_id)
         if cache_key:
             cache_voice_prompt(cache_key, voice_prompt)
         return voice_prompt, False
@@ -281,13 +375,57 @@ class MiniMaxTTSBackend:
         Returns:
             Tuple of (audio_array, sample_rate)
         """
-        import httpx
-
         voice_id = voice_prompt.get("minimax_voice_id") or voice_prompt.get("preset_voice_id")
         if not voice_id:
             raise RuntimeError("MiniMax voice prompt is missing a voice_id")
 
         settings = self._get_settings()
+
+        try:
+            return await self._generate_with_voice(
+                settings, voice_id, text, language, emotion, speed, pitch,
+                is_clone=bool(voice_prompt.get("minimax_voice_id")),
+            )
+        except MiniMaxAPIError as e:
+            # Self-heal: the remote clone no longer exists (expired unused,
+            # account cleanup…). Re-clone from the reference sample kept in
+            # the voice prompt and retry once.
+            can_reclone = (
+                e.code in _VOICE_GONE_CODES
+                and voice_prompt.get("minimax_voice_id")
+                and voice_prompt.get("ref_audio")
+            )
+            if not can_reclone:
+                raise
+            logger.warning(
+                "MiniMax voice %s no longer exists remotely — re-cloning from reference",
+                voice_id,
+            )
+            self._registry_delete(voice_id)
+            new_voice_id = await self._clone_voice(settings, voice_prompt["ref_audio"])
+            sample_hash = voice_prompt.get("sample_hash")
+            if sample_hash:
+                self._registry_save(new_voice_id, sample_hash)
+                refreshed = dict(voice_prompt, minimax_voice_id=new_voice_id)
+                cache_voice_prompt("minimax_" + sample_hash, refreshed)
+            return await self._generate_with_voice(
+                settings, new_voice_id, text, language, emotion, speed, pitch,
+                is_clone=True,
+            )
+
+    async def _generate_with_voice(
+        self,
+        settings: dict,
+        voice_id: str,
+        text: str,
+        language: str,
+        emotion: Optional[str],
+        speed: Optional[float],
+        pitch: Optional[int],
+        *,
+        is_clone: bool,
+    ) -> tuple[np.ndarray, int]:
+        import httpx
 
         voice_setting: dict = {"voice_id": voice_id}
         if speed is not None:
@@ -328,5 +466,65 @@ class MiniMaxTTSBackend:
         pcm = np.frombuffer(bytes.fromhex(audio_hex), dtype=np.int16)
         audio = pcm.astype(np.float32) / 32768.0
 
+        if is_clone:
+            self._registry_touch(voice_id)
+
         sample_rate = (body.get("extra_info") or {}).get("audio_sample_rate") or MINIMAX_SAMPLE_RATE
         return audio, int(sample_rate)
+
+
+# ── Anti-expiration keepalive ─────────────────────────────────────────
+# MiniMax retains a cloned voice indefinitely once it has been used, but
+# deletes clones that stay unused. To keep every registered clone alive
+# regardless, voices idle for KEEPALIVE_AFTER_DAYS get touched with a
+# minimal synthesis request on server startup (fractions of a cent each).
+
+KEEPALIVE_AFTER_DAYS = 4
+KEEPALIVE_MAX_PER_RUN = 20
+
+
+async def refresh_stale_voices() -> None:
+    """Touch cloned voices that haven't been used recently so they never
+    expire remotely. Silent no-op without an API key. Runs at startup."""
+    from datetime import datetime, timedelta
+
+    from ..database import MiniMaxVoice, get_db
+
+    backend = MiniMaxTTSBackend()
+    try:
+        settings = backend._get_settings()
+    except Exception:
+        return  # not configured — nothing to keep alive
+
+    cutoff = datetime.utcnow() - timedelta(days=KEEPALIVE_AFTER_DAYS)
+    db = next(get_db())
+    try:
+        stale = (
+            db.query(MiniMaxVoice)
+            .filter(MiniMaxVoice.last_used_at < cutoff)
+            .limit(KEEPALIVE_MAX_PER_RUN)
+            .all()
+        )
+        voice_ids = [row.voice_id for row in stale]
+    finally:
+        db.close()
+
+    if not voice_ids:
+        return
+
+    logger.info("MiniMax keepalive: touching %d idle cloned voice(s)", len(voice_ids))
+    for voice_id in voice_ids:
+        try:
+            await backend._generate_with_voice(
+                settings, voice_id, "om", "en", None, None, None, is_clone=True
+            )
+        except MiniMaxAPIError as e:
+            if e.code in _VOICE_GONE_CODES:
+                # Already gone remotely — drop the row; the self-heal path
+                # re-clones from the reference on next real use.
+                logger.warning("MiniMax voice %s already expired — unregistering", voice_id)
+                backend._registry_delete(voice_id)
+            else:
+                logger.warning("MiniMax keepalive failed for %s: %s", voice_id, e)
+        except Exception as e:
+            logger.warning("MiniMax keepalive failed for %s: %s", voice_id, e)

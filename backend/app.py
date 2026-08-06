@@ -338,6 +338,12 @@ async def _run_startup(application: FastAPI) -> None:
     create_background_task(check_and_update_cuda_binary())
     create_background_task(check_and_update_rocm_binary())
 
+    # Keep MiniMax cloned voices alive — touches idle clones so they never
+    # expire remotely. No-op when the provider isn't configured.
+    from .backends.minimax_backend import refresh_stale_voices
+
+    create_background_task(refresh_stale_voices())
+
     try:
         progress_manager = get_progress_manager()
         progress_manager._set_main_loop(asyncio.get_running_loop())
