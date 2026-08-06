@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Check,
+  ChevronsLeft,
   Copy,
   GalleryVerticalEnd,
   GripHorizontal,
@@ -12,10 +13,12 @@ import {
   RotateCcw,
   Scissors,
   Square,
+  SquareDashed,
   Trash2,
   Undo2,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
@@ -207,7 +210,7 @@ interface StoryTrackEditorProps {
 
 const TRACK_HEIGHT = 48;
 const TIME_RULER_HEIGHT = 24; // h-6 = 1.5rem = 24px
-const SCRUB_BAR_HEIGHT = 16;
+const SCRUB_BAR_HEIGHT = 24;
 const LABEL_COL_WIDTH = 64; // w-16 = 4rem = 64px
 // Zoom is expressed to the user as how many seconds of timeline are visible
 // at once. Min scope = the most you can zoom IN; max scope = the entire
@@ -331,6 +334,15 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     },
     [selectedClipId, storyId, setItemVersion, toast],
   );
+
+  // Sector (time-range) selection state — the "cut by sectors" tool
+  const [sectorMode, setSectorMode] = useState(false);
+  const [sector, setSector] = useState<{ startMs: number; endMs: number } | null>(null);
+  const sectorDragRef = useRef<{ anchorMs: number } | null>(null);
+  const [isCuttingSector, setIsCuttingSector] = useState(false);
+  // Drop-target highlight for files dragged over the timeline
+  const [isTimelineDropTarget, setIsTimelineDropTarget] = useState(false);
+  const timelineDropDepthRef = useRef(0);
 
   // Trim state
   const [trimmingItem, setTrimmingItem] = useState<string | null>(null);
@@ -599,6 +611,201 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     }
   }, [isResizing, handleResizeMove, handleResizeEnd]);
 
+  // ── Sector cut tool ─────────────────────────────────────────────────
+  // Removes a time range from every clip that overlaps it. Implemented
+  // with trim/move/add only (no chained splits): a clip fully covering
+  // the region becomes two clips — the original trimmed to end at the
+  // region start, plus a new item for the remainder placed at region end.
+  const cutSector = useCallback(
+    async (ripple: boolean) => {
+      if (!sector || isCuttingSector) return;
+      const { startMs, endMs } = sector;
+      const lengthMs = endMs - startMs;
+      if (lengthMs < 50) return;
+
+      setIsCuttingSector(true);
+      pushUndo(storyId, items);
+      try {
+        for (const item of items) {
+          const clipStart = item.start_time_ms;
+          const clipEnd = clipStart + getEffectiveDuration(item);
+          if (clipStart >= endMs || clipEnd <= startMs) continue; // no overlap
+
+          const trimStart = item.trim_start_ms || 0;
+          const trimEnd = item.trim_end_ms || 0;
+
+          if (clipStart >= startMs && clipEnd <= endMs) {
+            // Fully inside the sector — remove
+            await apiClient.removeStoryItem(storyId, item.id);
+          } else if (clipStart < startMs && clipEnd > endMs) {
+            // Clip covers the whole sector — keep head, spawn tail
+            await apiClient.trimStoryItem(storyId, item.id, {
+              trim_start_ms: trimStart,
+              trim_end_ms: trimEnd + Math.round(clipEnd - startMs),
+            });
+            const tail = await apiClient.addStoryItem(storyId, {
+              generation_id: item.generation_id,
+              start_time_ms: Math.round(endMs),
+              track: item.track,
+            });
+            await apiClient.trimStoryItem(storyId, tail.id, {
+              trim_start_ms: trimStart + Math.round(endMs - clipStart),
+              trim_end_ms: trimEnd,
+            });
+            if ((item.volume ?? 1.0) !== 1.0) {
+              await apiClient.updateStoryItemVolume(storyId, tail.id, {
+                volume: item.volume ?? 1.0,
+              });
+            }
+          } else if (clipStart < startMs) {
+            // Overlaps the left edge — cut the clip's tail
+            await apiClient.trimStoryItem(storyId, item.id, {
+              trim_start_ms: trimStart,
+              trim_end_ms: trimEnd + Math.round(clipEnd - startMs),
+            });
+          } else {
+            // Overlaps the right edge — cut the head, keep position at region end
+            await apiClient.trimStoryItem(storyId, item.id, {
+              trim_start_ms: trimStart + Math.round(endMs - clipStart),
+              trim_end_ms: trimEnd,
+            });
+            await apiClient.moveStoryItem(storyId, item.id, {
+              start_time_ms: Math.round(endMs),
+              track: item.track,
+            });
+          }
+        }
+
+        if (ripple) {
+          // Close the gap: shift everything at/after the region end left
+          const fresh = await apiClient.getStory(storyId);
+          for (const item of fresh.items) {
+            if (item.start_time_ms >= endMs) {
+              await apiClient.moveStoryItem(storyId, item.id, {
+                start_time_ms: Math.max(0, Math.round(item.start_time_ms - lengthMs)),
+                track: item.track,
+              });
+            }
+          }
+        }
+
+        setSector(null);
+        queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
+      } catch (error) {
+        toast({
+          title: 'Sector cut failed',
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive',
+        });
+        queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
+      } finally {
+        setIsCuttingSector(false);
+      }
+    },
+    [sector, isCuttingSector, items, storyId, pushUndo, queryClient, toast],
+  );
+
+  const timelineXToMs = useCallback(
+    (clientX: number) => {
+      if (!tracksRef.current) return 0;
+      const rect = tracksRef.current.getBoundingClientRect();
+      const x = clientX - rect.left + tracksRef.current.scrollLeft - LABEL_COL_WIDTH;
+      return Math.max(0, pixelsToMs(x));
+    },
+    [pixelsToMs],
+  );
+
+  const handleSectorMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!sectorMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const ms = timelineXToMs(e.clientX);
+      sectorDragRef.current = { anchorMs: ms };
+      setSector({ startMs: ms, endMs: ms });
+    },
+    [sectorMode, timelineXToMs],
+  );
+
+  useEffect(() => {
+    if (!sectorMode) return;
+    const onMove = (e: MouseEvent) => {
+      const drag = sectorDragRef.current;
+      if (!drag) return;
+      const ms = timelineXToMs(e.clientX);
+      setSector({
+        startMs: Math.min(drag.anchorMs, ms),
+        endMs: Math.max(drag.anchorMs, ms),
+      });
+    };
+    const onUp = () => {
+      if (!sectorDragRef.current) return;
+      sectorDragRef.current = null;
+      setSector((prev) => (prev && prev.endMs - prev.startMs >= 100 ? prev : null));
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [sectorMode, timelineXToMs]);
+
+  // ── Drop audio files directly onto the timeline at position ────────
+  const handleTimelineDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      timelineDropDepthRef.current = 0;
+      setIsTimelineDropTarget(false);
+      const files = Array.from(e.dataTransfer.files).filter((f) =>
+        /\.(wav|mp3|flac|ogg|m4a|aac|webm)$/i.test(f.name),
+      );
+      if (files.length === 0 || !tracksRef.current) return;
+
+      const dropMs = Math.round(timelineXToMs(e.clientX));
+      const rect = tracksRef.current.getBoundingClientRect();
+      const y = e.clientY - rect.top + tracksRef.current.scrollTop;
+      const trackIndex = Math.max(0, Math.min(Math.floor(y / TRACK_HEIGHT), tracks.length - 1));
+      const dropTrack = tracks[trackIndex] ?? 0;
+
+      pushUndo(storyId, items);
+      let cursorMs = dropMs;
+      for (const file of files) {
+        try {
+          const generation = await apiClient.importAudio(file);
+          await apiClient.addStoryItem(storyId, {
+            generation_id: generation.id,
+            start_time_ms: cursorMs,
+            track: dropTrack,
+          });
+          cursorMs += Math.round((generation.duration || 0) * 1000) + 200;
+        } catch (error) {
+          toast({
+            title: 'Import failed',
+            description: error instanceof Error ? error.message : String(error),
+            variant: 'destructive',
+          });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
+    },
+    [timelineXToMs, tracks, storyId, items, pushUndo, queryClient, toast],
+  );
+
+  const handleTimelineDragEnter = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    timelineDropDepthRef.current += 1;
+    setIsTimelineDropTarget(true);
+  }, []);
+
+  const handleTimelineDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    timelineDropDepthRef.current = Math.max(0, timelineDropDepthRef.current - 1);
+    if (timelineDropDepthRef.current === 0) setIsTimelineDropTarget(false);
+  }, []);
+
   const handleTimelineClick = (e: React.MouseEvent<HTMLElement>) => {
     if (!tracksRef.current || draggingItem || trimmingItem) return;
     const rect = tracksRef.current.getBoundingClientRect();
@@ -863,6 +1070,12 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         handlePlayPause();
       } else if (e.key === 'Escape') {
         setSelectedClipId(null);
+        setSector(null);
+        setSectorMode(false);
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        setSectorMode((prev) => !prev);
+        setSector(null);
       } else if (e.key === 's' || e.key === 'S') {
         if (selectedClipId) {
           e.preventDefault();
@@ -1206,6 +1419,59 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
             >
               <Redo2 className="h-4 w-4" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-7 w-7',
+                sectorMode && 'bg-accent text-accent-foreground hover:bg-accent/90',
+              )}
+              onClick={() => {
+                setSectorMode((prev) => !prev);
+                setSector(null);
+              }}
+              title="Sector select — drag a time range to cut (R)"
+              aria-label="Sector select tool"
+              aria-pressed={sectorMode}
+            >
+              <SquareDashed className="h-4 w-4" />
+            </Button>
+            {sector && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={() => cutSector(false)}
+                  disabled={isCuttingSector}
+                  title="Cut sector — remove range, keep gap"
+                  aria-label="Cut sector"
+                >
+                  <Scissors className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={() => cutSector(true)}
+                  disabled={isCuttingSector}
+                  title="Cut sector + close gap (ripple)"
+                  aria-label="Cut sector and close gap"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setSector(null)}
+                  title="Clear selection (Esc)"
+                  aria-label="Clear sector selection"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Clip editing controls - center */}
@@ -1353,11 +1619,22 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         {/* biome-ignore lint/a11y/noStaticElementInteractions: Container handles drag events for child clips */}
         <div
           ref={tracksRef}
-          className="overflow-auto relative"
+          className={cn(
+            'overflow-auto relative',
+            isTimelineDropTarget && 'ring-2 ring-inset ring-accent/60 bg-accent/5',
+            sectorMode && 'cursor-crosshair',
+          )}
           style={{ height: `${timelineContainerHeight}px` }}
           onMouseMove={draggingItem ? handleDragMove : undefined}
           onMouseUp={draggingItem ? handleDragEnd : undefined}
           onMouseLeave={draggingItem ? handleDragEnd : undefined}
+          onMouseDown={sectorMode ? handleSectorMouseDown : undefined}
+          onDragEnter={handleTimelineDragEnter}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+          }}
+          onDragLeave={handleTimelineDragLeave}
+          onDrop={handleTimelineDrop}
         >
           {/* Ruler row: corner spacer + time ruler, sticky to top */}
           <div
@@ -1502,6 +1779,9 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                       )}
                       onClick={(e) => handleClipClick(e, item)}
                       onMouseDown={(e) => {
+                        // Sector mode: let the event bubble so range selection
+                        // works across clips instead of starting a drag.
+                        if (sectorMode) return;
                         // Only start drag if not clicking on trim handles
                         if (!(e.target as HTMLElement).closest('.trim-handle')) {
                           handleDragStart(e, item);
@@ -1550,6 +1830,21 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                 );
               })}
 
+              {/* Sector selection overlay */}
+              {sector && (
+                <div
+                  className="absolute top-0 bottom-0 z-20 pointer-events-none bg-destructive/15 border-x-2 border-destructive/60"
+                  style={{
+                    left: `${msToPixels(sector.startMs)}px`,
+                    width: `${Math.max(2, msToPixels(sector.endMs - sector.startMs))}px`,
+                  }}
+                >
+                  <span className="absolute -top-0.5 left-1 text-[9px] text-destructive font-medium select-none">
+                    {formatTime(sector.startMs)}–{formatTime(sector.endMs)}
+                  </span>
+                </div>
+              )}
+
               {/* Playhead - always visible */}
               <div
                 className="absolute top-0 bottom-0 w-1 bg-accent z-30 pointer-events-none rounded-full"
@@ -1567,13 +1862,41 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
           style={{ height: `${SCRUB_BAR_HEIGHT}px` }}
         >
           <div className="w-16 shrink-0 border-r" />
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: minimap click-to-jump */}
           <div
             ref={scrollbarTrackRef}
-            className="relative flex-1 overflow-hidden select-none px-1"
+            className="relative flex-1 overflow-hidden select-none px-1 cursor-pointer"
+            onMouseDown={(e) => {
+              // Click on empty track = jump so the clicked spot is centered.
+              // The thumb's own handlers stopPropagation, so this only fires
+              // on the minimap area outside the thumb.
+              if (!tracksRef.current || scrollbarTrackWidth <= 0) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const ratio = (e.clientX - rect.left) / scrollbarTrackWidth;
+              const target = ratio * timelineWidth - containerWidth / 2;
+              tracksRef.current.scrollLeft = Math.max(0, Math.min(maxTimelineScroll, target));
+            }}
           >
+            {/* Clip minimap — where the audio lives inside the whole project */}
+            {timelineWidth > 0 &&
+              items.map((item) => {
+                const left = (msToPixels(item.start_time_ms) / timelineWidth) * scrollbarTrackWidth;
+                const width = Math.max(
+                  2,
+                  (msToPixels(getEffectiveDuration(item)) / timelineWidth) * scrollbarTrackWidth,
+                );
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute top-[7px] h-[4px] rounded-full bg-accent/50 pointer-events-none"
+                    style={{ left: `${left}px`, width: `${width}px` }}
+                  />
+                );
+              })}
             <div
-              className="absolute top-1 bottom-1 bg-foreground/10 hover:bg-foreground/15 transition-colors group rounded-full"
+              className="absolute top-1 bottom-1 bg-foreground/10 hover:bg-foreground/20 border border-foreground/15 transition-colors group rounded-full"
               style={{ width: `${thumbWidth}px`, left: `${thumbLeft}px` }}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               {/* Left zoom handle */}
               {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse-driven edge handle */}
