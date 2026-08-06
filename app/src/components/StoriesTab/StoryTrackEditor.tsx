@@ -7,6 +7,7 @@ import {
   GripHorizontal,
   Loader2,
   Minus,
+  MoreHorizontal,
   Pause,
   Play,
   Plus,
@@ -1797,6 +1798,21 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                   }}
                 />
               )}
+              {selectedItem && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setContextMenu({ x: rect.left, y: rect.bottom + 4, item: selectedItem });
+                  }}
+                  title="More actions (copy prosody…)"
+                  aria-label="More clip actions"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -2099,12 +2115,22 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                       )}
                       onClick={(e) => handleClipClick(e, item)}
                       onContextMenu={(e) => {
+                        // Menu already opened from mousedown; just keep the
+                        // webview's native menu suppressed.
                         e.preventDefault();
                         e.stopPropagation();
-                        setSelectedClipId(item.id);
-                        setContextMenu({ x: e.clientX, y: e.clientY, item });
                       }}
                       onMouseDown={(e) => {
+                        // Right button: open our context menu here — some
+                        // webviews swallow the contextmenu event, mousedown
+                        // always arrives.
+                        if (e.button === 2) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSelectedClipId(item.id);
+                          setContextMenu({ x: e.clientX, y: e.clientY, item });
+                          return;
+                        }
                         // Sector mode: let the event bubble so range selection
                         // works across clips instead of starting a drag.
                         if (sectorMode) return;
