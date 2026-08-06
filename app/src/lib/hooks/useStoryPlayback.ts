@@ -10,6 +10,16 @@ interface ActiveSource {
   generationId: string;
   startTimeMs: number;
   endTimeMs: number;
+  track: number;
+  /** Persisted clip volume captured at schedule time */
+  baseVolume: number;
+}
+
+/** Whether a track is audible under the current mute/solo state. */
+function isTrackAudible(track: number, muted: Set<number>, solo: Set<number>): boolean {
+  if (muted.has(track)) return false;
+  if (solo.size > 0 && !solo.has(track)) return false;
+  return true;
 }
 
 /**
@@ -19,6 +29,9 @@ interface ActiveSource {
  */
 export function useStoryPlayback(items: StoryItemDetail[] | undefined) {
   const isPlaying = useStoryStore((state) => state.isPlaying);
+  const mutedTracks = useStoryStore((state) => state.mutedTracks);
+  const soloTracks = useStoryStore((state) => state.soloTracks);
+  const liveClipVolume = useStoryStore((state) => state.liveClipVolume);
   const playbackItems = useStoryStore((state) => state.playbackItems);
   const playbackStartContextTime = useStoryStore((state) => state.playbackStartContextTime);
   const playbackStartStoryTime = useStoryStore((state) => state.playbackStartStoryTime);
@@ -285,9 +298,13 @@ export function useStoryPlayback(items: StoryItemDetail[] | undefined) {
           source.buffer = buffer;
           // Per-clip gain so each item can override its level independently
           // of the master volume. Falls through 1.0 for any item without a
-          // saved value (older rows pre-migration).
+          // saved value (older rows pre-migration). Track mute/solo state
+          // factors in at schedule time and live via the effect below.
+          const baseVolume = typeof item.volume === 'number' ? item.volume : 1;
+          const { mutedTracks, soloTracks, liveClipVolume } = useStoryStore.getState();
+          const audible = isTrackAudible(item.track, mutedTracks, soloTracks);
           const clipGain = audioContext.createGain();
-          clipGain.gain.value = typeof item.volume === 'number' ? item.volume : 1;
+          clipGain.gain.value = (liveClipVolume.get(item.id) ?? baseVolume) * (audible ? 1 : 0);
           source.connect(clipGain);
           clipGain.connect(masterGainRef.current || audioContext.destination);
 
@@ -298,6 +315,8 @@ export function useStoryPlayback(items: StoryItemDetail[] | undefined) {
             generationId: item.generation_id,
             startTimeMs: item.start_time_ms,
             endTimeMs: itemEndStoryTime,
+            track: item.track,
+            baseVolume,
           };
 
           activeSourcesRef.current.set(item.id, activeSource);
@@ -315,6 +334,16 @@ export function useStoryPlayback(items: StoryItemDetail[] | undefined) {
     },
     [getAudioContext, findActiveItems, storyTimeToContextTime, stopSource],
   );
+
+  // Live gain updates: mute/solo toggles and in-flight volume drags apply
+  // to already-playing sources immediately instead of only at schedule time.
+  useEffect(() => {
+    for (const src of activeSourcesRef.current.values()) {
+      const audible = isTrackAudible(src.track, mutedTracks, soloTracks);
+      const volume = liveClipVolume.get(src.itemId) ?? src.baseVolume;
+      src.clipGain.gain.value = volume * (audible ? 1 : 0);
+    }
+  }, [mutedTracks, soloTracks, liveClipVolume]);
 
   // Sync visual playhead from AudioContext time
   useEffect(() => {

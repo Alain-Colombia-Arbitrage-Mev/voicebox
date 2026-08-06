@@ -12,6 +12,17 @@ interface StoryPlaybackState {
   trackEditorHeight: number;
   setTrackEditorHeight: (height: number) => void;
 
+  // Per-track playback mixing (non-destructive — doesn't touch saved volumes)
+  mutedTracks: Set<number>;
+  soloTracks: Set<number>;
+  toggleTrackMute: (track: number) => void;
+  toggleTrackSolo: (track: number) => void;
+  // Live per-clip volume while a slider is being dragged, so playback
+  // reflects the change before the PUT lands
+  liveClipVolume: Map<string, number>;
+  setLiveClipVolume: (itemId: string, volume: number) => void;
+  clearLiveClipVolume: (itemId: string) => void;
+
   // Playback state
   isPlaying: boolean;
   currentTimeMs: number;
@@ -43,6 +54,36 @@ export const useStoryStore = create<StoryPlaybackState>((set, get) => ({
   // Track editor UI state
   trackEditorHeight: DEFAULT_TRACK_EDITOR_HEIGHT,
   setTrackEditorHeight: (height) => set({ trackEditorHeight: height }),
+
+  // Per-track playback mixing
+  mutedTracks: new Set<number>(),
+  soloTracks: new Set<number>(),
+  toggleTrackMute: (track) =>
+    set((state) => {
+      const next = new Set(state.mutedTracks);
+      next.has(track) ? next.delete(track) : next.add(track);
+      return { mutedTracks: next };
+    }),
+  toggleTrackSolo: (track) =>
+    set((state) => {
+      const next = new Set(state.soloTracks);
+      next.has(track) ? next.delete(track) : next.add(track);
+      return { soloTracks: next };
+    }),
+  liveClipVolume: new Map<string, number>(),
+  setLiveClipVolume: (itemId, volume) =>
+    set((state) => {
+      const next = new Map(state.liveClipVolume);
+      next.set(itemId, volume);
+      return { liveClipVolume: next };
+    }),
+  clearLiveClipVolume: (itemId) =>
+    set((state) => {
+      if (!state.liveClipVolume.has(itemId)) return state;
+      const next = new Map(state.liveClipVolume);
+      next.delete(itemId);
+      return { liveClipVolume: next };
+    }),
 
   // Playback state
   isPlaying: false,

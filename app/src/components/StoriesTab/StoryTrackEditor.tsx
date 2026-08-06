@@ -157,6 +157,7 @@ function ClipVolumePopover({
   onChange: (value: number) => void;
 }) {
   const [localVolume, setLocalVolume] = useState(volume);
+  const setLiveClipVolume = useStoryStore((s) => s.setLiveClipVolume);
   // Re-sync when the selected clip changes or the persisted value updates
   // out-of-band (split/duplicate carry the value forward).
   useEffect(() => {
@@ -186,12 +187,83 @@ function ClipVolumePopover({
         </div>
         <Slider
           value={[localVolume * 100]}
-          onValueChange={([v]) => setLocalVolume(v / 100)}
+          onValueChange={([v]) => {
+            setLocalVolume(v / 100);
+            // Feed playback live so the drag is audible mid-play
+            setLiveClipVolume(itemId, v / 100);
+          }}
           onValueCommit={([v]) => onChange(v / 100)}
           min={0}
           max={200}
           step={1}
           aria-label="Clip volume"
+        />
+        <div className="flex justify-between mt-2 text-[10px] text-muted-foreground tabular-nums">
+          <span>0%</span>
+          <span>100%</span>
+          <span>200%</span>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Lane-level volume: shows the lane's average and sets every clip in the
+// lane to the chosen value. Live drag feeds playback via liveClipVolume.
+function TrackVolumePopover({
+  trackNumber,
+  items,
+  onCommit,
+}: {
+  trackNumber: number;
+  items: StoryItemDetail[];
+  onCommit: (volume: number) => void;
+}) {
+  const setLiveClipVolume = useStoryStore((s) => s.setLiveClipVolume);
+  const laneAverage =
+    items.length > 0
+      ? items.reduce((sum, i) => sum + (i.volume ?? 1), 0) / items.length
+      : 1;
+  const [localVolume, setLocalVolume] = useState(laneAverage);
+  // Re-sync when the lane's persisted volumes change out-of-band
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sync from average
+  useEffect(() => {
+    setLocalVolume(laneAverage);
+  }, [laneAverage, trackNumber]);
+
+  const display = Math.round(localVolume * 100);
+  const Icon = localVolume === 0 ? VolumeX : Volume2;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="relative z-10 w-5 h-5 rounded border border-border text-muted-foreground hover:bg-muted flex items-center justify-center transition-colors"
+          title={`Track volume — ${display}%`}
+          aria-label={`Track ${trackNumber} volume`}
+        >
+          <Icon className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="right" className="w-56 p-3 z-50">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-muted-foreground">Track {trackNumber} volume</span>
+          <span className="text-xs tabular-nums">{display}%</span>
+        </div>
+        <Slider
+          value={[localVolume * 100]}
+          onValueChange={([v]) => {
+            const vol = v / 100;
+            setLocalVolume(vol);
+            // Hear it live during the drag, even mid-playback
+            for (const item of items) setLiveClipVolume(item.id, vol);
+          }}
+          onValueCommit={([v]) => onCommit(v / 100)}
+          min={0}
+          max={200}
+          step={1}
+          aria-label={`Track ${trackNumber} volume`}
         />
         <div className="flex justify-between mt-2 text-[10px] text-muted-foreground tabular-nums">
           <span>0%</span>
@@ -211,7 +283,7 @@ interface StoryTrackEditorProps {
 const TRACK_HEIGHT = 48;
 const TIME_RULER_HEIGHT = 24; // h-6 = 1.5rem = 24px
 const SCRUB_BAR_HEIGHT = 24;
-const LABEL_COL_WIDTH = 64; // w-16 = 4rem = 64px
+const LABEL_COL_WIDTH = 96; // w-24 = 6rem = 96px
 // Zoom is expressed to the user as how many seconds of timeline are visible
 // at once. Min scope = the most you can zoom IN; max scope = the entire
 // project. Default scope is what we land on when the editor first measures.
@@ -250,6 +322,27 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
   const setItemVersion = useSetStoryItemVersion();
   const updateVolume = useUpdateStoryItemVolume();
   const { toast } = useToast();
+
+  const handleTrackVolume = useCallback(
+    async (trackNumber: number, volume: number) => {
+      const laneItems = items.filter((i) => i.track === trackNumber);
+      if (laneItems.length === 0) return;
+      pushUndo(storyId, items);
+      try {
+        for (const item of laneItems) {
+          await apiClient.updateStoryItemVolume(storyId, item.id, { volume });
+        }
+        queryClient.invalidateQueries({ queryKey: ['stories', storyId] });
+      } catch (error) {
+        toast({
+          title: 'Failed to set track volume',
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive',
+        });
+      }
+    },
+    [items, storyId, pushUndo, queryClient, toast],
+  );
 
   const handleUndo = useCallback(async () => {
     try {
@@ -355,6 +448,10 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
 
   // Track editor height from store (shared with FloatingGenerateBox)
   const editorHeight = useStoryStore((state) => state.trackEditorHeight);
+  const mutedTracks = useStoryStore((state) => state.mutedTracks);
+  const soloTracks = useStoryStore((state) => state.soloTracks);
+  const toggleTrackMute = useStoryStore((state) => state.toggleTrackMute);
+  const toggleTrackSolo = useStoryStore((state) => state.toggleTrackSolo);
   const setEditorHeight = useStoryStore((state) => state.setTrackEditorHeight);
 
   // Playback state
@@ -1641,7 +1738,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
             className="flex sticky top-0 z-30"
             style={{ width: `${timelineWidth + LABEL_COL_WIDTH}px` }}
           >
-            <div className="w-16 h-6 shrink-0 border-b border-r bg-muted/30 sticky left-0 z-40" />
+            <div className="w-24 h-6 shrink-0 border-b border-r bg-muted/30 sticky left-0 z-40" />
             <button
               type="button"
               className="h-6 border-b bg-muted/20 cursor-pointer text-left relative"
@@ -1685,11 +1782,47 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                     height: `${TRACK_HEIGHT}px`,
                   }}
                 >
-                  <div className="w-16 shrink-0 border-b border-r flex items-center justify-center sticky left-0 z-20 h-full bg-background">
+                  <div className="w-24 shrink-0 border-b border-r flex items-center gap-1 px-1.5 sticky left-0 z-20 h-full bg-background">
                     <div className="absolute inset-0 bg-muted/20 pointer-events-none" />
-                    <span className="relative text-[10px] text-muted-foreground select-none">
+                    <span className="relative text-[10px] text-muted-foreground select-none w-4 text-center">
                       {trackNumber}
                     </span>
+                    {/* Per-track mixer: mute, solo, lane volume */}
+                    <button
+                      type="button"
+                      onClick={() => toggleTrackMute(trackNumber)}
+                      className={cn(
+                        'relative z-10 w-5 h-5 rounded text-[9px] font-bold border transition-colors',
+                        mutedTracks.has(trackNumber)
+                          ? 'bg-destructive text-destructive-foreground border-destructive'
+                          : 'border-border text-muted-foreground hover:bg-muted',
+                      )}
+                      title="Mute track"
+                      aria-label={`Mute track ${trackNumber}`}
+                      aria-pressed={mutedTracks.has(trackNumber)}
+                    >
+                      M
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleTrackSolo(trackNumber)}
+                      className={cn(
+                        'relative z-10 w-5 h-5 rounded text-[9px] font-bold border transition-colors',
+                        soloTracks.has(trackNumber)
+                          ? 'bg-accent text-accent-foreground border-accent'
+                          : 'border-border text-muted-foreground hover:bg-muted',
+                      )}
+                      title="Solo track"
+                      aria-label={`Solo track ${trackNumber}`}
+                      aria-pressed={soloTracks.has(trackNumber)}
+                    >
+                      S
+                    </button>
+                    <TrackVolumePopover
+                      trackNumber={trackNumber}
+                      items={items.filter((i) => i.track === trackNumber)}
+                      onCommit={(volume) => handleTrackVolume(trackNumber, volume)}
+                    />
                     {isFirst && (
                       <button
                         type="button"
@@ -1758,6 +1891,10 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                 });
                 const clipWidth = msToPixels(effectiveDuration);
 
+                const trackAudible =
+                  !mutedTracks.has(item.track) &&
+                  (soloTracks.size === 0 || soloTracks.has(item.track));
+
                 return (
                   <div
                     key={item.id}
@@ -1765,6 +1902,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                       'absolute rounded select-none overflow-visible z-10',
                       isSelected && 'ring-2 ring-primary ring-offset-1',
                       isTrimming && 'ring-2 ring-accent',
+                      !trackAudible && 'opacity-40',
                     )}
                     style={style}
                   >
@@ -1861,7 +1999,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
           className="flex border-t bg-background/40"
           style={{ height: `${SCRUB_BAR_HEIGHT}px` }}
         >
-          <div className="w-16 shrink-0 border-r" />
+          <div className="w-24 shrink-0 border-r" />
           {/* biome-ignore lint/a11y/noStaticElementInteractions: minimap click-to-jump */}
           <div
             ref={scrollbarTrackRef}
