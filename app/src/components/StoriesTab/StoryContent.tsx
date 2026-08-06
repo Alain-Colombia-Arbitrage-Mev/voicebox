@@ -67,7 +67,8 @@ export function StoryContent() {
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
   const [freqPreset, setFreqPreset] = useState('');
   const [freqDuration, setFreqDuration] = useState('300');
-  const [freqWithMusic, setFreqWithMusic] = useState(true);
+  // Pure tones by default — the AI-music infusion is opt-in
+  const [freqWithMusic, setFreqWithMusic] = useState(false);
   const [isGeneratingFreq, setIsGeneratingFreq] = useState(false);
   const { data: freqPresets } = useQuery({
     queryKey: ['frequencyPresets'],
