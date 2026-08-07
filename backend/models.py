@@ -180,8 +180,8 @@ class FrequencyGenerationRequest(BaseModel):
     )
     mode: Optional[str] = Field(
         None,
-        pattern="^(pure|binaural|isochronic)$",
-        description="binaural needs headphones; isochronic works on speakers and mono mixes",
+        pattern="^(pure|binaural|isochronic|bell|gong)$",
+        description="binaural needs headphones; isochronic works on speakers; bell/gong render tuned strike trains",
     )
     duration_sec: float = Field(default=300, ge=10, le=1800, description="Length in seconds (max 30 min)")
     volume: float = Field(default=0.5, ge=0.05, le=1.0)

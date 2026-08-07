@@ -141,6 +141,44 @@ FREQUENCY_PRESETS: list[FrequencyPreset] = [
         mode="binaural",
         tags=["banda", "gamma"],
     ),
+    # Bells and gongs tuned to exact frequencies — inharmonic partial
+    # synthesis (real bell physics). beat_hz carries the strike rate.
+    FrequencyPreset(
+        key="campana-432",
+        name="Campanas 432 Hz — Armonía",
+        description="Campanas de bronce afinadas a 432 Hz exactos, un tañido sereno cada 12 segundos.",
+        carrier_hz=432.0,
+        beat_hz=1.0 / 12.0,
+        mode="bell",
+        tags=["campanas", "manifestacion"],
+    ),
+    FrequencyPreset(
+        key="campana-888",
+        name="Campanas 888 Hz — Prosperidad",
+        description="Campanas afinadas a 888 Hz, llamando a la abundancia cada 12 segundos.",
+        carrier_hz=888.0,
+        beat_hz=1.0 / 12.0,
+        mode="bell",
+        tags=["campanas", "abundancia"],
+    ),
+    FrequencyPreset(
+        key="campana-1111",
+        name="Campanas 1111 Hz — Manifestación",
+        description="Campanas del portal 11:11, un tañido cristalino cada 10 segundos.",
+        carrier_hz=1111.0,
+        beat_hz=0.1,
+        mode="bell",
+        tags=["campanas", "manifestacion"],
+    ),
+    FrequencyPreset(
+        key="gong-om",
+        name="Gong Om — 136.1 Hz",
+        description="Gong profundo en la frecuencia del Om (136.1 Hz), resonancia larga cada 25 segundos.",
+        carrier_hz=136.1,
+        beat_hz=0.04,
+        mode="gong",
+        tags=["gong", "om"],
+    ),
     # Breathing therapy: the isochronic gate at breathing rate turns the
     # carrier into soft swells that pace inhale/exhale — a guide sound,
     # not music. 0.1 Hz = 10 s cycle = 6 breaths/min (coherent breathing).
@@ -171,6 +209,84 @@ def get_preset(key: str) -> FrequencyPreset | None:
     return _PRESETS_BY_KEY.get(key)
 
 
+# Inharmonic partial sets — (ratio to fundamental, amplitude, decay seconds).
+# Bell ratios follow the classic minor-third church bell profile (hum,
+# prime, tierce, quint, nominal…); gong partials are denser and lower.
+_BELL_PARTIALS = [
+    (0.56, 0.5, 8.0),
+    (0.92, 0.7, 7.0),
+    (1.0, 1.0, 6.0),
+    (1.19, 0.6, 5.0),
+    (1.71, 0.4, 4.0),
+    (2.0, 0.5, 3.5),
+    (2.74, 0.3, 2.5),
+    (3.0, 0.25, 2.0),
+    (3.76, 0.15, 1.5),
+    (4.07, 0.1, 1.2),
+]
+_GONG_PARTIALS = [
+    (0.41, 1.0, 14.0),
+    (0.56, 0.7, 12.0),
+    (0.83, 0.8, 12.0),
+    (1.0, 1.0, 10.0),
+    (1.23, 0.6, 9.0),
+    (1.53, 0.5, 8.0),
+    (1.94, 0.4, 6.0),
+    (2.51, 0.35, 5.0),
+    (3.01, 0.3, 4.0),
+    (3.8, 0.2, 3.0),
+]
+
+
+def _render_strike(f0: float, sr: int, length_sec: float, gong: bool) -> np.ndarray:
+    """One bell/gong strike: sum of exponentially decaying inharmonic partials."""
+    n = int(length_sec * sr)
+    t = np.arange(n, dtype=np.float64) / sr
+    partials = _GONG_PARTIALS if gong else _BELL_PARTIALS
+    out = np.zeros(n, dtype=np.float64)
+    for ratio, amp, decay in partials:
+        f = f0 * ratio
+        if f >= sr * 0.45:
+            continue
+        # Slight detune per partial adds natural beating/shimmer
+        detune = 1.0 + 0.0015 * np.sin(ratio * 12.9898)
+        out += amp * np.sin(2 * np.pi * f * detune * t) * np.exp(-t / decay)
+    # Attack: bells ring instantly, gongs swell in
+    attack = int((0.25 if gong else 0.008) * sr)
+    if attack > 0:
+        out[:attack] *= np.linspace(0.0, 1.0, attack) ** (0.5 if gong else 1.0)
+    peak = np.max(np.abs(out)) or 1.0
+    return (out / peak).astype(np.float64)
+
+
+def _synthesize_strikes(
+    carrier_hz: float,
+    strike_interval_sec: float,
+    duration_sec: float,
+    sample_rate: int,
+    gong: bool,
+) -> np.ndarray:
+    """A meditative strike train with humanized timing and level."""
+    n = int(duration_sec * sample_rate)
+    out = np.zeros(n, dtype=np.float64)
+    ring = min(strike_interval_sec * 2.5, 30.0)
+    strike = _render_strike(carrier_hz, sample_rate, ring, gong)
+
+    rng = np.random.default_rng(int(carrier_hz * 10))  # deterministic per pitch
+    t = 0.5  # first strike shortly after the start
+    while t < duration_sec:
+        start = int(t * sample_rate)
+        end = min(n, start + len(strike))
+        level = 0.85 + 0.15 * rng.random()
+        out[start:end] += strike[: end - start] * level
+        t += strike_interval_sec * (0.92 + 0.16 * rng.random())
+
+    peak = np.max(np.abs(out)) or 1.0
+    if peak > 1.0:
+        out /= peak
+    return out
+
+
 def synthesize(
     *,
     carrier_hz: float,
@@ -191,6 +307,20 @@ def synthesize(
     volume = float(np.clip(volume, 0.05, 1.0))
     n = int(duration_sec * sample_rate)
     t = np.arange(n, dtype=np.float64) / sample_rate
+
+    # Bell/gong strike trains skip the breathing LFO — their own decay
+    # envelope IS the movement. Edge fades still apply.
+    if mode in ("bell", "gong"):
+        interval = (1.0 / beat_hz) if beat_hz > 0 else 12.0
+        audio = _synthesize_strikes(
+            carrier_hz, interval, duration_sec, sample_rate, gong=(mode == "gong")
+        )
+        fade_n = min(int(FADE_SEC * sample_rate), n // 4)
+        if fade_n > 0:
+            ramp = np.linspace(0.0, 1.0, fade_n)
+            audio[:fade_n] *= ramp
+            audio[-fade_n:] *= ramp[::-1]
+        return (audio * volume).astype(np.float32)
 
     def tone(freq_hz: float) -> np.ndarray:
         return np.sin(2 * np.pi * freq_hz * t)
