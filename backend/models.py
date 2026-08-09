@@ -166,6 +166,27 @@ class MusicGenerationRequest(BaseModel):
     )
 
 
+class LibraryItem(BaseModel):
+    """One entry of the public audio library."""
+
+    id: str
+    title: str
+    category: str  # soundscape | frequency | bells | breathing | imported | voice
+    voice: Optional[str] = None  # profile name for voice generations
+    duration_sec: float
+    created_at: datetime
+    audio_url: str
+    filename: str
+
+
+class LibraryResponse(BaseModel):
+    """Machine-consumable listing of created audio."""
+
+    items: List[LibraryItem]
+    total: int
+    categories: List[str]
+
+
 class FrequencyGenerationRequest(BaseModel):
     """Request model for healing-frequency / brainwave tone synthesis."""
 
