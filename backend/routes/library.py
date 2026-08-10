@@ -37,14 +37,22 @@ _CORS_HEADERS = {
 
 def _category_for(profile_name: str, title: str) -> str:
     base = _BANK_PROFILES.get(profile_name, "voice")
-    if base != "frequency":
+    if base == "soundscape":
         return base
     lowered = title.lower()
-    if "respiración" in lowered or "respiracion" in lowered:
+    # Frequency-profile items and imports both categorize by title so a
+    # library migrated through /generate/import keeps meaningful categories.
+    if "respiración" in lowered or "respiracion" in lowered or "breathing" in lowered:
         return "breathing"
-    if "campana" in lowered or "gong" in lowered:
+    if "campana" in lowered or "gong" in lowered or "bell" in lowered:
         return "bells"
-    return "frequency"
+    if base == "frequency" or "hz" in lowered or "schumann" in lowered:
+        return "frequency"
+    if base == "imported":
+        return "soundscape" if any(
+            k in lowered for k in ("soundscape", "meditation", "ambien", "rain", "ocean", "forest", "drone", "handpan", "bowls")
+        ) else "imported"
+    return base
 
 
 def _slugify(text: str) -> str:
