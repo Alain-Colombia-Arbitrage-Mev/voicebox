@@ -12,4 +12,7 @@ for dev in /dev/kfd /dev/dri/render*; do
     }
     usermod -aG "$grp" voicebox
 done
+# Mounted volumes (Railway, k8s…) arrive root-owned — hand the data dir to
+# the app user or SQLite can't create its database file.
+chown -R voicebox:voicebox /app/data 2>/dev/null || true
 exec gosu voicebox "$@"
