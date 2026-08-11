@@ -134,21 +134,31 @@ class MiniMaxTTSBackend:
     # ── Settings ──────────────────────────────────────────────────────
 
     def _get_settings(self):
-        """Read the MiniMax provider settings row. Raises if no API key."""
+        """Read the MiniMax provider settings row. Raises if no API key.
+
+        Environment variables act as fallback for headless deployments
+        (Railway, Docker) so a fresh instance works without touching the
+        settings endpoint, and a wiped volume doesn't lose the credential.
+        DB values, when present, take precedence.
+        """
+        import os
+
         from ..database import get_db
         from ..services.settings import get_minimax_settings
 
         db = next(get_db())
         try:
             row = get_minimax_settings(db)
-            if not row.api_key:
+            api_key = row.api_key or os.environ.get("MINIMAX_API_KEY")
+            if not api_key:
                 raise RuntimeError(
-                    "MiniMax API key not configured. Add it in Settings → MiniMax."
+                    "MiniMax API key not configured. Add it in Settings → MiniMax "
+                    "or set the MINIMAX_API_KEY environment variable."
                 )
             return {
-                "api_key": row.api_key,
-                "group_id": row.group_id,
-                "host": (row.api_host or DEFAULT_MINIMAX_HOST).rstrip("/"),
+                "api_key": api_key,
+                "group_id": row.group_id or os.environ.get("MINIMAX_GROUP_ID"),
+                "host": (row.api_host or os.environ.get("MINIMAX_API_HOST") or DEFAULT_MINIMAX_HOST).rstrip("/"),
                 "model": row.model or DEFAULT_MINIMAX_MODEL,
             }
         finally:
