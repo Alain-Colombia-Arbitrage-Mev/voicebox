@@ -1,0 +1,10 @@
+data/
+backend/venv/
+backend/.env
+backend/dist/
+node_modules/
+tauri/src-tauri/target/
+app/dist/
+web/dist/
+output/
+.codex/
