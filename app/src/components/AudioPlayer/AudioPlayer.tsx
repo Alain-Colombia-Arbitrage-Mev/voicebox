@@ -305,10 +305,17 @@ export function AudioPlayer() {
         loadingRef.current = false;
       })
       .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        // A superseded load (user picked another track while this one was
+        // fetching) rejects with an abort — that's expected, not an error.
+        if ((err instanceof Error && err.name === 'AbortError') || /abort/i.test(msg)) {
+          debug.log('Audio load superseded by a newer track');
+          return;
+        }
         debug.error('Failed to load audio:', err);
         loadingRef.current = false;
         setIsLoading(false);
-        setError(`Failed to load audio: ${err instanceof Error ? err.message : String(err)}`);
+        setError(`Failed to load audio: ${msg}`);
       });
   }, [audioUrl, wsReady, setCurrentTime, setDuration]);
 
