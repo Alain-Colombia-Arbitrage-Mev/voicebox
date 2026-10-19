@@ -1,0 +1,23 @@
+{
+  "output_dir": "data/mantralia/pruebas-acento-colombiano",
+  "description": "Prueba de acento colombiano diseñada por texto. Pendiente de aprobación auditiva del usuario; no es una voz latina validada. No utiliza grabaciones de terceros.",
+  "normalize": false,
+  "preview_text": "Ese contrato, ese pago, esa oportunidad llevan días ocupando tus pensamientos. ¿Qué puedes hacer hoy con lo que está en tus manos? Date un momento. Reconoce lo que sientes y elige tu próximo paso.",
+  "text": "Ese contrato, ese pago, esa oportunidad... llevan días ocupando tus pensamientos. ¿Qué puedes hacer hoy con lo que está en tus manos? Date un momento. Reconoce lo que sientes y elige tu próximo paso.",
+  "voices": [
+    {
+      "slug": "bogota-conversacional-prueba",
+      "name": "Mantralia · Prueba Bogotá conversacional",
+      "prompt": "Mujer adulta nacida y criada en Bogotá, Colombia; español colombiano como lengua materna. Voz original, de registro medio, cálida y cercana. Habla como una colombiana conversando con otra persona, con dicción clara y entonación bogotana cotidiana, sin caricatura. Vocales españolas puras a, e, i, o, u; la r y la rr son españolas; seseo colombiano y consonantes naturales. Une las palabras dentro de cada frase y coloca los acentos tónicos del español. Preguntas expresivas y finales de frase reposados. Ritmo conversacional tranquilo, con cuerpo vocal, sin susurrar. La pronunciación y la melodía deben ser colombianas nativas, sin vocales inglesas ni cadencia de una extranjera hablando español.",
+      "emotion": "calm",
+      "speed": 1.0
+    },
+    {
+      "slug": "bogota-resonante-prueba",
+      "name": "Mantralia · Prueba Bogotá resonante",
+      "prompt": "Una mujer bogotana adulta, hablante nativa de español colombiano. Voz original de registro medio grave, redonda y resonante, suave pero con presencia. Acompaña con seguridad y afecto, como una narradora colombiana que habla de manera personal. Acento de Bogotá reconocible y moderado: seseo, vocales españolas claras sin diptongarlas, r simple y rr vibrante españolas, pronunciación natural de tranquilidad, oportunidad y pensamientos. Entonación flexible en preguntas, frases conectadas y acentos tónicos españoles. Ritmo sereno sin arrastrar sílabas. Cierre cálido y firme. Sin susurro, sin tono de anuncio exagerado, sin sonidos vocálicos ni melodía del inglés.",
+      "emotion": "calm",
+      "speed": 1.0
+    }
+  ]
+}

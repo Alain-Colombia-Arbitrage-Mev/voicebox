@@ -211,40 +211,25 @@ class MLXTTSBackend:
 
             # Validate that the audio file exists
             if ref_audio and not Path(ref_audio).exists():
-                logger.warning("Audio file not found: %s", ref_audio)
-                logger.warning("This may be due to a cached voice prompt referencing a deleted temp file.")
-                logger.warning("Regenerating without voice prompt.")
-                ref_audio = None
+                raise FileNotFoundError("Voice reference audio is missing; select or restore the profile sample.")
 
             # Inference runs with the process's default HF_HUB_OFFLINE
             # state. Forcing offline here (previously used to avoid lazy
             # mlx_audio lookups hanging when the network drops mid-inference,
             # issue #462) regressed online users because libraries make
             # legitimate metadata calls during generation.
-            try:
-                if ref_audio:
-                    # Check if generate accepts ref_audio parameter
-                    import inspect
+            if ref_audio:
+                import inspect
 
-                    sig = inspect.signature(self.model.generate)
-                    if "ref_audio" in sig.parameters:
-                        # Generate with voice cloning
-                        for result in self.model.generate(text, ref_audio=ref_audio, ref_text=ref_text, lang_code=lang):
-                            audio_chunks.append(np.array(result.audio))
-                            sample_rate = result.sample_rate
-                    else:
-                        # Fallback: generate without voice cloning
-                        for result in self.model.generate(text, lang_code=lang):
-                            audio_chunks.append(np.array(result.audio))
-                            sample_rate = result.sample_rate
-                else:
-                    # No voice prompt, generate normally
-                    for result in self.model.generate(text, lang_code=lang):
-                        audio_chunks.append(np.array(result.audio))
-                        sample_rate = result.sample_rate
-            except Exception as e:
-                # If voice cloning fails, try without it
-                logger.warning("Voice cloning failed, generating without voice prompt: %s", e)
+                sig = inspect.signature(self.model.generate)
+                if "ref_audio" not in sig.parameters:
+                    raise RuntimeError("Selected model cannot use the requested voice reference.")
+                # Preserve the chosen speaker: inference errors must reach the
+                # caller rather than silently switching to a generic voice.
+                for result in self.model.generate(text, ref_audio=ref_audio, ref_text=ref_text, lang_code=lang):
+                    audio_chunks.append(np.array(result.audio))
+                    sample_rate = result.sample_rate
+            else:
                 for result in self.model.generate(text, lang_code=lang):
                     audio_chunks.append(np.array(result.audio))
                     sample_rate = result.sample_rate

@@ -1,0 +1,192 @@
+{
+  "authorization": "User requested deletion of all session voices and regeneration.",
+  "profiles": [
+    {
+      "id": "37b33529-6104-4c04-ae7b-9371430f6293",
+      "name": "Mantralia · Susurro ASMR original"
+    },
+    {
+      "id": "4b61138c-e2bf-42e1-938d-71844dfec042",
+      "name": "Mantralia · Narradora argentina original"
+    },
+    {
+      "id": "60bd132e-9206-4310-9199-1803da2fb8a4",
+      "name": "Mantralia · Calma ASMR original"
+    },
+    {
+      "id": "67ab20a4-b2c0-4e12-a9f6-f3319564c9d9",
+      "name": "Mantralia · Prueba Bogotá resonante"
+    },
+    {
+      "id": "6eda049d-3465-4b98-91b3-62caace6b2d3",
+      "name": "Mantralia · Colombiana serena"
+    },
+    {
+      "id": "a8d657d0-30ab-4a74-94ba-2238a90fc9d1",
+      "name": "Mantralia · Narrador original cercano"
+    },
+    {
+      "id": "acca5852-d32d-4cf4-a5a3-9b9a4ceea4d2",
+      "name": "Mantralia · Narradora original cercana"
+    },
+    {
+      "id": "b5e9f77c-6669-478a-97df-b006a020ab00",
+      "name": "Mantralia · Prueba Bogotá conversacional"
+    }
+  ],
+  "generations": [
+    {
+      "id": "5c6e3d88-1546-41e0-8f73-4f42d8c3e04b",
+      "profile_id": "6eda049d-3465-4b98-91b3-62caace6b2d3",
+      "text": "Toma un momento para ti. Permite que tus hombros descansen. <#2.5#>\nInhala suavemente, a tu propio ritmo. (inhale) <#3#>\nY deja salir el aire, sin forzar. (exhale) <#4#>\nPregúntate con calma: ¿Qué necesito hoy para dar mi próximo paso con más claridad? <#7#>\nDate un momento. Deja que aparezca una respuesta, aunque todavía sea pequeña. <#6#>\nSi deseas hacer una petición al universo, puedes comenzar con estas palabras: <#2#>\nUniverso, deseo nuevas oportunidades para mi vida. Ayúdame a reconocerlas y a encontrar el valor para actuar. <#3#>\nQuiero construir una prosperidad que me permita vivir con tranquilidad, compartir con quienes amo y desarrollar mis capacidades. <#3#>\nHoy estoy dispuesto a aprender, a pedir apoyo y a dar un paso hacia lo que deseo. <#4#>\nPuedes adaptar esta petición hasta sentir que expresa lo que llevas dentro. <#4#>\nAhora piensa en una acción que esté a tu alcance. <#3#>\nQuizá enviar esa propuesta que tienes pendiente. Preparar una conversación importante. Retomar una idea que habías dejado de lado. O descansar para decidir con más calma. <#5#>\nElige una y piensa cuándo vas a hacerla. <#8#>\nDespués, repite suavemente: <#1.5#>\nMis capacidades tienen valor. <#4#>\nMi esfuerzo merece una dirección. <#4#>\nPuedo aprender y avanzar a mi ritmo. <#5#>\nRespira una vez más, sin forzar. (breath) <#6#>\nCuando estés listo, escribe tu intención y el paso que has elegido para hoy. <#3#>\n",
+      "language": "es",
+      "duration": 193.4266875,
+      "engine": "minimax"
+    },
+    {
+      "id": "eded7da6-b8db-4e17-bdb0-ff53b1aa0f48",
+      "profile_id": "6eda049d-3465-4b98-91b3-62caace6b2d3",
+      "text": "A veces, no te falta esfuerzo. Te falta claridad para saber hacia dónde dirigirlo. <#0.45#>\nPregúntate con calma: ¿Qué necesito hoy para dar mi próximo paso con más claridad? Date un momento. Deja que aparezca una respuesta, aunque todavía sea pequeña. <#0.7#>\nSi deseas hacer una petición al universo, puedes comenzar con estas palabras: Universo, deseo nuevas oportunidades para mi vida. Ayúdame a reconocerlas y a encontrar el valor para actuar. <#0.35#>\nQuiero construir una prosperidad que me permita vivir con tranquilidad, compartir con quienes amo y desarrollar mis capacidades. <#0.35#>\nHoy estoy dispuesto a aprender, a pedir apoyo y a dar un paso hacia lo que deseo. Puedes adaptar esta petición hasta sentir que expresa lo que llevas dentro. <#0.45#>\nAhora piensa en una acción que esté a tu alcance. Quizá enviar esa propuesta que tienes pendiente. Preparar una conversación importante. Retomar una idea que habías dejado de lado. O descansar para decidir con más calma. <#0.45#>\nElige una y piensa cuándo vas a hacerla. Después, repite suavemente: Mis capacidades tienen valor. Mi esfuerzo merece una dirección. Puedo aprender y avanzar a mi ritmo. <#0.55#>\nRespira una vez más, sin forzar. Cuando estés listo, escribe tu intención y el paso que has elegido para hoy. No necesitas tener todas las respuestas. Empieza por una decisión que puedas convertir en acción. <#0.6#>",
+      "language": "es",
+      "duration": 99.52703125,
+      "engine": "minimax"
+    },
+    {
+      "id": "9c5ad7c0-6533-4b1d-af1a-7e9c251b0df2",
+      "profile_id": "a8d657d0-30ab-4a74-94ba-2238a90fc9d1",
+      "text": "Hay deseos que llevas tiempo sintiendo, pero todavía no has puesto en palabras. Tal vez buscas una oportunidad, una conversación pendiente o una dirección que vuelva a ilusionarte. En Mantralia, puedes dedicar un momento a esa intención. Escribe tu petición al universo, elige un mandala para acompañarla y pregúntate: ¿qué paso está en mis manos? Abre Mantralia y empieza por expresar lo que deseas.",
+      "language": "es",
+      "duration": 25.135625,
+      "engine": "minimax"
+    },
+    {
+      "id": "ed07d395-9d33-4351-b211-8234a96649d0",
+      "profile_id": "acca5852-d32d-4cf4-a5a3-9b9a4ceea4d2",
+      "text": "Hay deseos que llevas tiempo sintiendo, pero todavía no has puesto en palabras. Tal vez buscas una oportunidad, una conversación pendiente o una dirección que vuelva a ilusionarte. En Mantralia, puedes dedicar un momento a esa intención. Escribe tu petición al universo, elige un mandala para acompañarla y pregúntate: ¿qué paso está en mis manos? Abre Mantralia y empieza por expresar lo que deseas.",
+      "language": "es",
+      "duration": 25.75096875,
+      "engine": "minimax"
+    },
+    {
+      "id": "9f9a5313-baa9-40f9-885b-f85fccfafc15",
+      "profile_id": "37b33529-6104-4c04-ae7b-9371430f6293",
+      "text": "Los recursos son ilimitados para nuestra creación. <#2#> El universo anhela mi éxito. <#2#> Los contratos se cierran con facilidad. <#2#> Somos vasijas. Nos gusta contener. <#1.5#> El dinero llega con facilidad. <#2#> El dinero abunda en nuestra existencia. <#3#>",
+      "language": "es",
+      "duration": 52.0244375,
+      "engine": "minimax"
+    },
+    {
+      "id": "04ee5d1c-02fc-4f4c-91aa-11237686d62f",
+      "profile_id": "60bd132e-9206-4310-9199-1803da2fb8a4",
+      "text": "Los recursos son ilimitados para nuestra creación. <#2#> El universo anhela mi éxito. <#2#> Los contratos se cierran con facilidad. <#2#> Somos vasijas. Nos gusta contener. <#1.5#> El dinero llega con facilidad. <#2#> El dinero abunda en nuestra existencia. <#3#>",
+      "language": "es",
+      "duration": 32.40578125,
+      "engine": "minimax"
+    },
+    {
+      "id": "bce93c85-4089-43c1-bdae-870e93045191",
+      "profile_id": "37b33529-6104-4c04-ae7b-9371430f6293",
+      "text": "Los recursos son ilimitados para nuestra creación. <#2#> El universo anhela mi éxito. <#2#> Los contratos se cierran con facilidad. <#2#> Somos vasijas. Nos gusta contener. <#1.5#> El dinero llega con facilidad. <#2#> El dinero abunda en nuestra existencia. <#3#>",
+      "language": "es",
+      "duration": 31.401125,
+      "engine": "minimax"
+    },
+    {
+      "id": "a94b8543-01fd-4597-97fa-58dfbcae02f1",
+      "profile_id": "4b61138c-e2bf-42e1-938d-71844dfec042",
+      "text": "¿Ya imaginaste ese momento? <#0.65#> El contrato firmado. La confirmación. El mensaje que dice: vamos adelante. <#0.45#> Pero pasan los días y la espera empieza a ocuparlo todo. <#0.35#> Revisas el teléfono, repasas la conversación y te preguntas: ¿qué pudiste hacer diferente? <#0.75#> (breath) Antes de volver a revisar, dedica unos minutos a reconocer cómo te está afectando esa espera. <#0.5#> En Mantralia, encuentra una meditación para acompañarte. Escribe tu intención y elige qué puedes hacer hoy. <#0.35#> (breath) Abre Mantralia. Dale un espacio a lo que sientes antes de dar tu próximo paso. <#0.5#>",
+      "language": "es",
+      "duration": 39.5526875,
+      "engine": "minimax"
+    },
+    {
+      "id": "7d9212b8-b485-44ee-a6db-a6c19d253435",
+      "profile_id": "acca5852-d32d-4cf4-a5a3-9b9a4ceea4d2",
+      "text": "Ese contrato. <#0.2#> Ese pago. <#0.2#> Esa oportunidad... llevan días ocupando tus pensamientos. <#0.45#> Dedica un momento a reconocer lo que esta espera despierta en ti. <#0.35#> En Mantralia, encuentra una meditación. Escribe tu petición al universo y elige una intención para acompañar tu día. <#0.65#> Me preparo para las oportunidades que deseo y actúo sobre lo que está en mis manos.",
+      "language": "es",
+      "duration": 25.34865625,
+      "engine": "minimax"
+    },
+    {
+      "id": "08f7d12e-366b-4286-950a-648cda443e12",
+      "profile_id": "9b999c94-37db-430c-8079-9084ba73c088",
+      "text": "Mantralia · Voz Amiga · Original con pausas y calidez",
+      "language": "en",
+      "duration": 24.175125,
+      "engine": "import"
+    },
+    {
+      "id": "3ccd324e-1dfb-4c19-99c9-d7c10addbcf3",
+      "profile_id": "9b999c94-37db-430c-8079-9084ba73c088",
+      "text": "Mantralia · Voz Amiga · Nueva toma latina",
+      "language": "en",
+      "duration": 25.348666666666666,
+      "engine": "import"
+    },
+    {
+      "id": "065d322b-53d7-4693-add0-62562b85ecc0",
+      "profile_id": "b5e9f77c-6669-478a-97df-b006a020ab00",
+      "text": "Ese contrato, ese pago, esa oportunidad... llevan días ocupando tus pensamientos. ¿Qué puedes hacer hoy con lo que está en tus manos? Date un momento. Reconoce lo que sientes y elige tu próximo paso.",
+      "language": "es",
+      "duration": 14.1641875,
+      "engine": "minimax"
+    },
+    {
+      "id": "d8ab7780-55a5-41f1-beec-e709a601303c",
+      "profile_id": "9b999c94-37db-430c-8079-9084ba73c088",
+      "text": "Mantralia · Prueba de acento Bogotá · Conversacional",
+      "language": "en",
+      "duration": 14.164208333333333,
+      "engine": "import"
+    },
+    {
+      "id": "4fd4b366-bc0e-4d8b-b02d-1a1dbce4e47e",
+      "profile_id": "67ab20a4-b2c0-4e12-a9f6-f3319564c9d9",
+      "text": "Ese contrato, ese pago, esa oportunidad... llevan días ocupando tus pensamientos. ¿Qué puedes hacer hoy con lo que está en tus manos? Date un momento. Reconoce lo que sientes y elige tu próximo paso.",
+      "language": "es",
+      "duration": 15.185875,
+      "engine": "minimax"
+    },
+    {
+      "id": "dd79195e-3d44-4428-a9dd-558516b38374",
+      "profile_id": "9b999c94-37db-430c-8079-9084ba73c088",
+      "text": "Mantralia · Prueba de acento Bogotá · Resonante",
+      "language": "en",
+      "duration": 15.185875,
+      "engine": "import"
+    },
+    {
+      "id": "273c4c27-af8b-4933-8c00-b738a963b612",
+      "profile_id": "9b999c94-37db-430c-8079-9084ba73c088",
+      "text": "Mantralia · Endurece tu mente · Mezcla mejorada",
+      "language": "en",
+      "duration": 629.67875,
+      "engine": "import"
+    }
+  ],
+  "remote_voice_ids": [
+    "ttv-voice-2026101122540726-awDwwryW",
+    "ttv-voice-2026101123082626-nNaWYXJC",
+    "ttv-voice-2026101123091326-IN8rIB47",
+    "ttv-voice-2026101123115526-kS3HHXrl",
+    "ttv-voice-2026101123122526-aVCIHGM0",
+    "ttv-voice-2026101123161726-hwaCDpQr",
+    "ttv-voice-2026101123221926-nyyqDC6e",
+    "ttv-voice-2026101123224426-LAPOYZs6"
+  ],
+  "local_output_files": 112,
+  "original_downloads_deleted": false,
+  "remote_deleted": [
+    "ttv-voice-2026101122540726-awDwwryW",
+    "ttv-voice-2026101123082626-nNaWYXJC",
+    "ttv-voice-2026101123091326-IN8rIB47",
+    "ttv-voice-2026101123115526-kS3HHXrl",
+    "ttv-voice-2026101123122526-aVCIHGM0",
+    "ttv-voice-2026101123161726-hwaCDpQr",
+    "ttv-voice-2026101123221926-nyyqDC6e",
+    "ttv-voice-2026101123224426-LAPOYZs6"
+  ],
+  "remote_errors": [],
+  "remote_verified_absent": true,
+  "local_verified_absent": true
+}

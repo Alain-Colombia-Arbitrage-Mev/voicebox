@@ -116,3 +116,24 @@ def update_minimax_settings(db: Session, patch: dict[str, Any]) -> DBMiniMaxSett
     db.commit()
     db.refresh(row)
     return row
+
+
+def get_fish_settings(db: Session):
+    from ..database import FishSettings
+    row = db.query(FishSettings).filter_by(id=SINGLETON_ID).first()
+    if row is None:
+        row = FishSettings(id=SINGLETON_ID)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+def update_fish_settings(db: Session, patch: dict):
+    row = get_fish_settings(db)
+    if patch.get("api_key") == "":
+        patch["api_key"] = None
+    _apply_patch(row, patch)
+    db.commit()
+    db.refresh(row)
+    return row

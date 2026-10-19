@@ -1,0 +1,9 @@
+{
+  "pauses": [
+    {"gap_start": 0.92, "gap_end": 1.25, "add_sec": 0.12, "after": "Ese contrato"},
+    {"gap_start": 1.95, "gap_end": 2.25, "add_sec": 0.12, "after": "Ese pago"},
+    {"gap_start": 5.62, "gap_end": 6.25, "add_sec": 0.18, "after": "Tus pensamientos"},
+    {"gap_start": 10.08, "gap_end": 10.42, "add_sec": 0.18, "after": "Despierta en ti"},
+    {"gap_start": 17.82, "gap_end": 18.2, "add_sec": 0.3, "after": "Acompañar tu día"}
+  ]
+}

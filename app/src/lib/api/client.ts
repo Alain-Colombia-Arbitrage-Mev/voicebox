@@ -53,6 +53,8 @@ import type {
   MCPClientBindingUpsert,
   FrequencyGenerationRequest,
   FrequencyPresetsResponse,
+  FishSettings,
+  FishSettingsUpdate,
   MiniMaxSettings,
   MiniMaxSettingsUpdate,
   MusicGenerationRequest,
@@ -548,6 +550,17 @@ class ApiClient {
     patch: GenerationSettingsUpdate,
   ): Promise<GenerationSettings> {
     return this.request<GenerationSettings>('/settings/generation', {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  async getFishSettings(): Promise<FishSettings> {
+    return this.request<FishSettings>('/settings/fish');
+  }
+
+  async updateFishSettings(patch: FishSettingsUpdate): Promise<FishSettings> {
+    return this.request<FishSettings>('/settings/fish', {
       method: 'PUT',
       body: JSON.stringify(patch),
     });

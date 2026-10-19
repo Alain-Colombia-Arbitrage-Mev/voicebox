@@ -1,0 +1,16 @@
+{
+  "output_dir": "data/mantralia/prosodia-argentina",
+  "description": "Voz femenina sintética original, diseñada por texto con dirección rioplatense para narración empática, preguntas y respiraciones discretas. Revisión auditiva pendiente.",
+  "normalize": false,
+  "text": "¿Ya imaginaste ese momento? <#0.65#> El contrato firmado. La confirmación. El mensaje que dice: vamos adelante. <#0.45#> Pero pasan los días y la espera empieza a ocuparlo todo. <#0.35#> Revisas el teléfono, repasas la conversación y te preguntas: ¿qué pudiste hacer diferente? <#0.75#> (breath) Antes de volver a revisar, dedica unos minutos a reconocer cómo te está afectando esa espera. <#0.5#> En Mantralia, encuentra una meditación para acompañarte. Escribe tu intención y elige qué puedes hacer hoy. <#0.35#> (breath) Abre Mantralia. Dale un espacio a lo que sientes antes de dar tu próximo paso. <#0.5#>",
+  "preview_text": "¿Ya imaginaste ese momento? El contrato firmado. La confirmación. El mensaje que dice: vamos adelante. Pero pasan los días y la espera empieza a ocuparlo todo.",
+  "voices": [
+    {
+      "slug": "narracion-argentina-original",
+      "name": "Mantralia · Narradora argentina original",
+      "emotion": "fluent",
+      "speed": 0.96,
+      "prompt": "Original adult female voice, native Argentine Rioplatense Spanish with a subtle Buenos Aires accent. Warm clear medium-register voice, full and articulate. Empathetic professional narrator, intimate conversational presence without whispering. Natural connected phrases and expressive meaning-based rhythm. Give real questions a gentle questioning intonation, especially Ya imaginaste ese momento and que pudiste hacer diferente. Vary emphasis, leave light thinking pauses, breathe discreetly at transitions, and end the invitation with calm conviction. No repeated sing-song rises, robotic cadence, exaggerated advertising delivery, dramatic gasps or forced breathiness. No music or reverb."
+    }
+  ]
+}

@@ -19,6 +19,7 @@ import type { MiniMaxModel, MiniMaxSettingsUpdate } from '@/lib/api/types';
 import { useGenerationSettings } from '@/lib/hooks/useSettings';
 import { usePlatform } from '@/platform/PlatformContext';
 import { useServerStore } from '@/stores/serverStore';
+import { FishAudioSettings } from './FishAudioSettings';
 import { SettingRow, SettingSection } from './SettingRow';
 
 const MINIMAX_MODELS: MiniMaxModel[] = [
@@ -191,6 +192,7 @@ export function GenerationPage() {
         />
       </SettingSection>
 
+      <FishAudioSettings />
       <SettingSection
         title={t('settings.minimax.title')}
         description={t('settings.minimax.description')}

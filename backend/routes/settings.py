@@ -1,5 +1,7 @@
 """User settings endpoints — capture/refine and generation defaults."""
 
+import os
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -38,7 +40,7 @@ async def update_generation_settings_endpoint(
 
 def _minimax_response(row) -> models.MiniMaxSettingsResponse:
     """Never echo the full API key back to clients — expose set/preview only."""
-    key = row.api_key or ""
+    key = row.api_key or os.environ.get("MINIMAX_API_KEY") or ""
     return models.MiniMaxSettingsResponse(
         api_key_set=bool(key),
         api_key_preview=key[-4:] if key else None,
@@ -60,3 +62,19 @@ async def update_minimax_settings_endpoint(
 ):
     row = settings_service.update_minimax_settings(db, patch.model_dump(exclude_unset=True))
     return _minimax_response(row)
+
+
+def _fish_response(row):
+    return models.FishSettingsResponse(
+        api_key_set=bool(row.api_key or os.environ.get("FISH_AUDIO_API_KEY")), model=row.model,
+    )
+
+
+@router.get("/fish", response_model=models.FishSettingsResponse)
+async def get_fish_settings_endpoint(db: Session = Depends(get_db)):
+    return _fish_response(settings_service.get_fish_settings(db))
+
+
+@router.put("/fish", response_model=models.FishSettingsResponse)
+async def update_fish_settings_endpoint(patch: models.FishSettingsUpdate, db: Session = Depends(get_db)):
+    return _fish_response(settings_service.update_fish_settings(db, patch.model_dump(exclude_unset=True)))

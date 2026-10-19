@@ -97,7 +97,8 @@ export interface GenerationRequest {
     | 'chatterbox_turbo'
     | 'tada'
     | 'kokoro'
-    | 'minimax';
+    | 'minimax'
+    | 'fish';
   instruct?: string;
   /** Emotional tone for engines that support it (MiniMax). Omit for auto. */
   emotion?: EmotionValue;
@@ -324,6 +325,16 @@ export type MiniMaxModel =
   | 'speech-02-turbo'
   | 'speech-01-hd'
   | 'speech-01-turbo';
+
+export type FishModel = 's2-pro' | 's2.1-pro' | 's2.1-pro-free';
+export interface FishSettings {
+  api_key_set: boolean;
+  model: FishModel;
+}
+export interface FishSettingsUpdate {
+  api_key?: string;
+  model?: FishModel;
+}
 
 export interface MiniMaxSettings {
   api_key_set: boolean;

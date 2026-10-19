@@ -1,0 +1,22 @@
+{
+  "profile": "Mantralia · Narradora original cercana",
+  "engine": "minimax",
+  "language": "es",
+  "emotion": "fluent",
+  "speed": 0.99,
+  "pitch": 0,
+  "text": "Ese contrato. <#0.2#> Ese pago. <#0.2#> Esa oportunidad... llevan días ocupando tus pensamientos. <#0.45#> Dedica un momento a reconocer lo que esta espera despierta en ti. <#0.35#> En Mantralia, encuentra una meditación. Escribe tu petición al universo y elige una intención para acompañar tu día. <#0.65#> Me preparo para las oportunidades que deseo y actúo sobre lo que está en mis manos.",
+  "direction": [
+    "Apertura: reconocimiento cercano; variar suavemente el énfasis entre contrato, pago y oportunidad.",
+    "Reflexión: bajar la intensidad al decir esta espera, sin volver la lectura solemne ni susurrada.",
+    "Mantralia: invitación clara y cálida, sin un pico de volumen publicitario.",
+    "Afirmación: separar del mensaje anterior, recuperar firmeza en me preparo y actúo; cerrar con una caída suave en mis manos."
+  ],
+  "direction_usage": "Indicaciones editoriales para revisión; MiniMax recibe text, emotion, speed y pitch. La identidad original y el acento colombiano proceden del perfil diseñado por texto.",
+  "listening_review": "pending",
+  "accent_review": {
+    "status": "rejected_by_user",
+    "feedback": "Las voces se sienten gringas, no latinas.",
+    "next_step": "Pruebas cortas con nuevos perfiles de dirección colombiana; no reutilizar esta voz como acento aprobado."
+  }
+}

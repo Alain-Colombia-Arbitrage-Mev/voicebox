@@ -28,6 +28,7 @@ const generationSchema = z.object({
       'tada',
       'kokoro',
       'minimax',
+      'fish',
     ])
     .optional(),
   emotion: z
@@ -94,7 +95,7 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
     try {
       const engine = data.engine || 'qwen';
       const modelName =
-        engine === 'luxtts'
+        engine === 'fish' ? 'fish-speech' : engine === 'luxtts'
           ? 'luxtts'
           : engine === 'chatterbox'
             ? 'chatterbox-tts'
@@ -112,7 +113,7 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                       ? `qwen-custom-voice-${data.modelSize}`
                       : `qwen-tts-${data.modelSize}`;
       const displayName =
-        engine === 'luxtts'
+        engine === 'fish' ? 'Fish Audio (Cloud)' : engine === 'luxtts'
           ? 'LuxTTS'
           : engine === 'chatterbox'
             ? 'Chatterbox TTS'
@@ -135,7 +136,7 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                         : 'Qwen TTS 0.6B';
 
       // Check if model needs downloading (cloud engines are always available)
-      if (engine !== 'minimax') {
+      if (engine !== 'minimax' && engine !== 'fish') {
         try {
           const modelStatus = await apiClient.getModelStatus();
           const model = modelStatus.models.find((m) => m.model_name === modelName);
@@ -153,10 +154,10 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         engine === 'qwen' || engine === 'qwen_custom_voice' || engine === 'tada';
       // Only Qwen CustomVoice actually honors the instruct kwarg at model level.
       // Base Qwen3-TTS accepts the kwarg but ignores it.
-      const supportsInstruct = engine === 'qwen_custom_voice';
+      const supportsInstruct = engine === 'qwen_custom_voice' || engine === 'fish';
       // Prosody controls only apply to engines that honor them.
-      const supportsEmotion = engine === 'minimax';
-      const supportsSpeed = engine === 'minimax' || engine === 'kokoro';
+      const supportsEmotion = engine === 'minimax' || engine === 'fish';
+      const supportsSpeed = engine === 'minimax' || engine === 'fish' || engine === 'kokoro';
       const supportsPitch = engine === 'minimax';
       const effectsChain = options.getEffectsChain?.();
       // This now returns immediately with status="generating"

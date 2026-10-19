@@ -27,6 +27,7 @@ const ENGINE_OPTIONS = [
   { value: 'tada:1B', label: 'TADA 1B', engine: 'tada' },
   { value: 'tada:3B', label: 'TADA 3B Multilingual', engine: 'tada' },
   { value: 'kokoro', label: 'Kokoro 82M', engine: 'kokoro' },
+  { value: 'fish', label: 'Fish Audio (Cloud)', engine: 'fish' },
   { value: 'minimax', label: 'MiniMax Speech (Cloud)', engine: 'minimax' },
 ] as const;
 
@@ -38,6 +39,7 @@ const ENGINE_DESCRIPTIONS: Record<string, string> = {
   chatterbox_turbo: 'English, [laugh] [cough] tags',
   tada: 'HumeAI, 700s+ coherent audio',
   kokoro: '82M params, CPU realtime, 8 langs',
+  fish: 'Cloud API, native voice reference, S2 emotion and breath cues',
   minimax: 'Cloud API, emotion + speed control, cloning',
 };
 
@@ -52,11 +54,12 @@ const CLONING_ENGINES = new Set([
   'chatterbox_turbo',
   'tada',
   'minimax',
+  'fish',
 ]);
 
 /** Engines with per-generation prosody controls (emotion select, speed slider). */
-export const EMOTION_ENGINES = new Set(['minimax']);
-export const SPEED_ENGINES = new Set(['minimax', 'kokoro']);
+export const EMOTION_ENGINES = new Set(['minimax', 'fish']);
+export const SPEED_ENGINES = new Set(['minimax', 'fish', 'kokoro']);
 
 function getAvailableOptions(selectedProfile?: VoiceProfileResponse | null) {
   if (!selectedProfile) return ENGINE_OPTIONS;

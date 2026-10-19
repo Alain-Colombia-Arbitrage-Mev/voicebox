@@ -1,0 +1,77 @@
+{
+  "pauses": [
+    {
+      "gap_start": 1.48,
+      "gap_end": 1.86,
+      "add_sec": 0.35,
+      "after": "¿Ya imaginaste ese momento?"
+    },
+    {
+      "gap_start": 3.44,
+      "gap_end": 3.96,
+      "add_sec": 0.08,
+      "after": "El contrato firmado"
+    },
+    {
+      "gap_start": 4.88,
+      "gap_end": 5.38,
+      "add_sec": 0.08,
+      "after": "La confirmación"
+    },
+    {
+      "gap_start": 7.56,
+      "gap_end": 8.1,
+      "add_sec": 0.35,
+      "after": "Vamos adelante"
+    },
+    {
+      "gap_start": 11.62,
+      "gap_end": 12.14,
+      "add_sec": 0.2,
+      "after": "Ocuparlo todo"
+    },
+    {
+      "gap_start": 13.42,
+      "gap_end": 13.84,
+      "add_sec": 0.1,
+      "after": "El teléfono"
+    },
+    {
+      "gap_start": 15.42,
+      "gap_end": 15.66,
+      "add_sec": 0.18,
+      "after": "La conversación"
+    },
+    {
+      "gap_start": 17.68,
+      "gap_end": 18.32,
+      "add_sec": 0.55,
+      "after": "¿Qué pudiste hacer diferente?"
+    },
+    {
+      "gap_start": 19.72,
+      "gap_end": 19.98,
+      "add_sec": 0.18,
+      "after": "Antes de volver a revisar"
+    },
+    {
+      "gap_start": 23.82,
+      "gap_end": 24.48,
+      "add_sec": 0.35,
+      "after": "Esa espera"
+    },
+    {
+      "gap_start": 31.2,
+      "gap_end": 31.58,
+      "add_sec": 0.25,
+      "after": "Qué puedes hacer hoy"
+    },
+    {
+      "gap_start": 32.38,
+      "gap_end": 32.86,
+      "add_sec": 0.3,
+      "after": "Abre Mantralia"
+    }
+  ],
+  "source_filename": "Argentina-2026-10-08-00-35-Ya-imaginaste-ese-momento.-El-contrato-firmado..mp3"
+}

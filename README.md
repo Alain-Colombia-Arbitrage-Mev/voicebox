@@ -428,6 +428,17 @@ just build          # Build CPU server binary + Tauri app
 just build-local    # (Windows) Build CPU + CUDA server binaries + Tauri app
 ```
 
+### Mantralia: Latina podcast and meditation voices
+
+Fish Audio and MiniMax are available as cloud engines, with server-side keys in
+Settings → Generation or `FISH_AUDIO_API_KEY` / `MINIMAX_API_KEY`. These engines
+send speech text and voice references to their providers and require API credit.
+Select a native Latin American voice profile, then load the professional podcast script
+to apply Spanish, fluent delivery and short editorial pauses.
+The [Spanish performance script and rendering instructions](docs/mantralia/guion-claridad.md)
+include the complete voiceover, emotional direction and provider-specific scripts.
+Accent and naturalness still require listening to the chosen voice.
+
 ### Adding New Voice Models
 
 The multi-engine architecture makes adding new TTS engines straightforward. A [step-by-step guide](docs/content/docs/developer/tts-engines.mdx) covers the full process: dependency research, backend protocol implementation, frontend wiring, and PyInstaller bundling.

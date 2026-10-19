@@ -219,6 +219,7 @@ TTS_ENGINES = {
     "tada": "TADA",
     "kokoro": "Kokoro",
     "minimax": "MiniMax Speech",
+    "fish": "Fish Audio",
 }
 
 LLM_ENGINES = {
@@ -373,6 +374,15 @@ def _get_non_qwen_tts_configs() -> list[ModelConfig]:
             hf_repo_id="hexgrad/Kokoro-82M",
             size_mb=350,
             languages=["en", "es", "fr", "hi", "it", "pt", "ja", "zh"],
+        ),
+        ModelConfig(
+            model_name="fish-speech",
+            display_name="Fish Audio (Cloud)",
+            engine="fish",
+            hf_repo_id="",
+            is_remote=True,
+            supports_instruct=True,
+            languages=["es", "en", "zh", "ja", "ko", "de", "fr", "pt", "it", "ar", "ru"],
         ),
         ModelConfig(
             model_name="minimax-speech",
@@ -758,6 +768,10 @@ def get_tts_backend_for_engine(engine: str) -> TTSBackend:
             from .qwen_custom_voice_backend import QwenCustomVoiceBackend
 
             backend = QwenCustomVoiceBackend()
+        elif engine == "fish":
+            from .fish_backend import FishTTSBackend
+
+            backend = FishTTSBackend()
         elif engine == "minimax":
             from .minimax_backend import MiniMaxTTSBackend
 

@@ -69,6 +69,8 @@ const MODEL_DESCRIPTIONS: Record<string, string> = {
     'HumeAI TADA 3B Multilingual — built on Llama 3.2 3B. Supports 10 languages with high-fidelity voice cloning via text-acoustic dual alignment.',
   kokoro:
     'Kokoro 82M by hexgrad. Tiny 82M-parameter TTS that runs at CPU realtime. Supports 8 languages with pre-built voice styles. Apache 2.0 licensed.',
+  'fish-speech':
+    'Fish Audio hosted S2 speech with reference voices, inline emotion, breath cues and exact reflection pauses. Configure the API key in Settings → Generation. No download.',
   'minimax-speech':
     'MiniMax Speech cloud API. Instant voice cloning with emotion, speed and pitch control across 20+ languages. Requires a MiniMax API key (Settings → MiniMax). No local download.',
   'qwen-custom-voice-1.7B':
@@ -417,7 +419,8 @@ export function ModelManagement() {
         m.model_name.startsWith('chatterbox') ||
         m.model_name.startsWith('tada') ||
         m.model_name.startsWith('kokoro') ||
-        m.model_name.startsWith('minimax'),
+        m.model_name.startsWith('minimax') ||
+        m.model_name.startsWith('fish'),
     ) ?? [];
   const whisperModels = modelStatus?.models.filter((m) => m.model_name.startsWith('whisper')) ?? [];
   const llmModels = modelStatus?.models.filter((m) => m.model_name.startsWith('qwen3-')) ?? [];

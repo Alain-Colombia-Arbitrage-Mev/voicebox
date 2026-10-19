@@ -70,6 +70,7 @@ const DEFAULT_ENGINE_OPTIONS = [
   { value: 'chatterbox_turbo', label: 'Chatterbox Turbo' },
   { value: 'tada', label: 'TADA' },
   { value: 'kokoro', label: 'Kokoro 82M' },
+  { value: 'fish', label: 'Fish Audio (Cloud)' },
   { value: 'minimax', label: 'MiniMax Speech (Cloud)' },
 ] as const;
 

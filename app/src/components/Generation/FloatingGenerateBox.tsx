@@ -26,9 +26,11 @@ import { useGenerationStore } from '@/stores/generationStore';
 import { useStoryStore } from '@/stores/storyStore';
 import { useUIStore } from '@/stores/uiStore';
 import { EMOTION_ENGINES, EngineModelSelector, SPEED_ENGINES } from './EngineModelSelector';
+import { locutionDirection, locutionSpeed, locutionText } from '@/lib/utils/locution';
+import { LocutionTemplate } from './LocutionTemplate';
 import { ParalinguisticInput } from './ParalinguisticInput';
 
-const SPEED_OPTIONS = [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0];
+const SPEED_OPTIONS = [0.5, 0.75, 0.9, 1.0, locutionSpeed, 1.1, 1.25, 1.5, 1.75, 2.0];
 const PITCH_OPTIONS = [-12, -8, -4, -2, 0, 2, 4, 8, 12];
 
 interface FloatingGenerateBoxProps {
@@ -141,11 +143,23 @@ export function FloatingGenerateBox({
 
   // Sync engine selection to global store so ProfileList can filter
   const watchedEngine = form.watch('engine');
+  const textMaxHeight = watchedEngine === 'fish' || watchedEngine === 'minimax' ? 160 : 300;
   useEffect(() => {
     if (watchedEngine) {
       setSelectedEngine(watchedEngine);
     }
   }, [watchedEngine, setSelectedEngine]);
+
+  // A loaded template must use the selected provider's native cue syntax.
+  useEffect(() => {
+    if (watchedEngine !== 'fish' && watchedEngine !== 'minimax') return;
+    const other = watchedEngine === 'fish' ? 'minimax' : 'fish';
+    if (form.getValues('text') === locutionText(other)) {
+      form.setValue('text', locutionText(watchedEngine), { shouldDirty: true });
+      form.setValue('instruct', watchedEngine === 'fish' ? locutionDirection : '');
+      form.setValue('emotion', watchedEngine === 'minimax' ? 'fluent' : undefined);
+    }
+  }, [watchedEngine, form]);
 
   // Sync generation form language, engine, and effects with selected profile
   type EngineValue =
@@ -156,7 +170,8 @@ export function FloatingGenerateBox({
     | 'tada'
     | 'kokoro'
     | 'qwen_custom_voice'
-    | 'minimax';
+    | 'minimax'
+    | 'fish';
   useEffect(() => {
     if (selectedProfile?.language) {
       form.setValue('language', selectedProfile.language as LanguageCode);
@@ -223,7 +238,7 @@ export function FloatingGenerateBox({
       textarea.style.height = 'auto';
       const scrollHeight = textarea.scrollHeight;
       const minHeight = 100; // Expanded minimum
-      const maxHeight = 300; // Max height in pixels
+      const maxHeight = textMaxHeight; // Leave room for the voiceover template
       const targetHeight = Math.max(minHeight, Math.min(scrollHeight, maxHeight));
       textarea.style.height = `${targetHeight}px`;
 
@@ -250,7 +265,7 @@ export function FloatingGenerateBox({
       clearTimeout(timeoutId);
       textarea.removeEventListener('input', adjustHeight);
     };
-  }, [isExpanded]);
+  }, [isExpanded, textMaxHeight]);
 
   async function onSubmit(data: Parameters<typeof handleSubmit>[0]) {
     await handleSubmit(data, selectedProfileId);
@@ -313,7 +328,7 @@ export function FloatingGenerateBox({
                               className="px-3 py-2 resize-none bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none focus:ring-0 outline-none ring-0 rounded-2xl text-sm w-full"
                               style={{
                                 minHeight: isExpanded ? '100px' : '32px',
-                                maxHeight: '300px',
+                                maxHeight: `${textMaxHeight}px`,
                                 overflowY: 'auto',
                               }}
                               disabled={!selectedProfileId}
@@ -341,7 +356,7 @@ export function FloatingGenerateBox({
                               className="resize-none bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none focus:ring-0 outline-none ring-0 rounded-2xl text-sm placeholder:text-muted-foreground/60 w-full"
                               style={{
                                 minHeight: isExpanded ? '100px' : '32px',
-                                maxHeight: '300px',
+                                maxHeight: `${textMaxHeight}px`,
                               }}
                               disabled={!selectedProfileId}
                               onClick={() => setIsExpanded(true)}
@@ -443,7 +458,7 @@ export function FloatingGenerateBox({
 
                 {/* Instruct toggle — only for Qwen CustomVoice, which actually honors the kwarg */}
                 <AnimatePresence>
-                  {isExpanded && form.watch('engine') === 'qwen_custom_voice' && (
+                  {isExpanded && ['qwen_custom_voice', 'fish'].includes(form.watch('engine') || '') && (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -510,9 +525,13 @@ export function FloatingGenerateBox({
               </div>
             </div>
 
+            {isExpanded && (watchedEngine === 'fish' || watchedEngine === 'minimax') && (
+              <LocutionTemplate form={form} engine={watchedEngine} />
+            )}
+
             {/* Additive instruct textarea — shown below main text when toggle is on and engine supports it */}
             <AnimatePresence>
-              {isInstructExpanded && form.watch('engine') === 'qwen_custom_voice' && (
+              {isInstructExpanded && ['qwen_custom_voice', 'fish'].includes(form.watch('engine') || '') && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -698,7 +717,7 @@ export function FloatingGenerateBox({
                         )}
                       />
                     )}
-                    {EMOTION_ENGINES.has(watchedEngine || '') && (
+                    {watchedEngine === 'minimax' && (
                       <FormField
                         control={form.control}
                         name="pitch"

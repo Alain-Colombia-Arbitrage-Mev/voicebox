@@ -1,0 +1,48 @@
+{
+  "old_profiles_absent": true,
+  "old_generations_absent": true,
+  "old_outputs_absent": true,
+  "new_profiles": [
+    {
+      "id": "76324216-62a4-4bf3-986a-df59cb161654",
+      "name": "Mantralia · Referencia Laura · Calma",
+      "language": "es",
+      "engine": "qwen"
+    },
+    {
+      "id": "b3b82f7b-3228-4a80-9b1c-34b1a7761296",
+      "name": "Mantralia · Referencia Argentina · Narración",
+      "language": "es",
+      "engine": "qwen"
+    }
+  ],
+  "verified_masters": [
+    {
+      "title": "Mantralia · Regeneración desde Argentina · Claridad",
+      "id": "50543501-6a9b-4616-af6a-576cfb80f18f",
+      "duration_sec": 75.61933333333333
+    },
+    {
+      "title": "Mantralia · Regeneración desde Argentina · Intención",
+      "id": "db61abc8-3d08-4d27-ac70-0d5481e1b8f5",
+      "duration_sec": 24.08
+    },
+    {
+      "title": "Mantralia · Regeneración desde Laura · Calma",
+      "id": "519340b5-5066-4950-a9d1-1bea906771c2",
+      "duration_sec": 16.720041666666667
+    },
+    {
+      "title": "Mantralia · Regeneración desde Argentina · Narración",
+      "id": "42bbeb3b-465c-4ff6-996e-7be95c0141c2",
+      "duration_sec": 32.72
+    },
+    {
+      "title": "Mantralia · Regeneración desde Argentina · Voz Amiga",
+      "id": "b59b0a1e-8ea6-481d-b585-5d5293e0816a",
+      "duration_sec": 21.52
+    }
+  ],
+  "reference_required_tests_passed": 3,
+  "accent_review": "pending_user_listening"
+}

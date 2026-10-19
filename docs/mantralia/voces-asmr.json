@@ -1,0 +1,23 @@
+{
+  "output_dir": "data/mantralia/asmr-calma",
+  "description": "Voz femenina sintética original diseñada por texto para ASMR y calma. Sin referencia de una persona real. Dirección colombiana; revisión auditiva pendiente.",
+  "normalize": false,
+  "text": "Los recursos son ilimitados para nuestra creación. <#2#> El universo anhela mi éxito. <#2#> Los contratos se cierran con facilidad. <#2#> Somos vasijas. Nos gusta contener. <#1.5#> El dinero llega con facilidad. <#2#> El dinero abunda en nuestra existencia. <#3#>",
+  "preview_text": "Toma este momento para ti. No necesitas apresurarte. Permite que cada palabra encuentre su espacio. Puedes escuchar con calma, a tu propio ritmo.",
+  "voices": [
+    {
+      "slug": "susurro-original",
+      "name": "Mantralia · Susurro ASMR original",
+      "emotion": "calm",
+      "speed": 0.94,
+      "prompt": "Original adult female voice, native Colombian Spanish with a soft Bogota accent. Gentle unvoiced ASMR whisper, warm mid-low timbre, intimate close-microphone sound and very clear Spanish articulation. Quiet even volume, unhurried connected phrases, reassuring and grounded. Fine natural airy texture without loud breath sounds. Soft consonants and rounded vowels, subtle falling sentence endings. Meditation and quiet listening. No theatrical delivery, no advertising energy, no exaggerated mouth sounds, no hissing sibilants, no music or echo."
+    },
+    {
+      "slug": "voz-suave-original",
+      "name": "Mantralia · Calma ASMR original",
+      "emotion": "calm",
+      "speed": 0.86,
+      "prompt": "Original adult female voice, native Colombian Spanish with a light Bogota accent. Soft voiced ASMR and meditation narration, warm rounded medium register with a delicate airy edge. Intimate near-microphone sound, gentle natural phonation rather than an unvoiced whisper. Clear professional Spanish diction, calm low intensity, connected slow phrases with natural varied intonation, reassuring presence and soft descending endings. No advertising cadence, no exaggerated sweetness, no loud inhalations, no sharp sibilants, no music or reverb."
+    }
+  ]
+}

@@ -746,6 +746,12 @@
         "fluent": "Fluido",
         "whisper": "Susurro"
       }
+    },
+    "locution": {
+      "title": "Mantralia · Locución profesional",
+      "load": "Cargar guion de podcast",
+      "hint": "Ritmo fluido, intención persuasiva y pausas breves. Voz femenina latina con dicción profesional; sin respiraciones audibles ni silencios de meditación. Escucha la voz para revisar el acento.",
+      "empty": "Vacía el texto para cargar el guion. Tu texto actual se conserva."
     }
   },
   "main": {
@@ -1232,6 +1238,16 @@
         "description": "Solo si tu cuenta de MiniMax requiere el parámetro GroupId.",
         "placeholder": "GroupId"
       }
+    },
+    "fish": {
+      "description": "Voces expresivas en la nube. Usa una muestra de una mujer latina para conservar su acento. Requiere saldo de API de Fish Audio.",
+      "key": "Clave de API",
+      "configured": "Clave configurada en el servidor",
+      "missing": "Añade tu clave de Fish Audio",
+      "save": "Guardar",
+      "clear": "Borrar clave guardada",
+      "model": "Modelo",
+      "failed": "No se pudieron guardar los ajustes de Fish Audio"
     }
   },
   "models": {

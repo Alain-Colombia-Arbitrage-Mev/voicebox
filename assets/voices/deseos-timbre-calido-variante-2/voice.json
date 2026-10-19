@@ -1,0 +1,27 @@
+{
+  "id": "deseos-timbre-calido-variante-2",
+  "name": "Deseos · Timbre cálido · Variante 2 · MiniMax HD",
+  "description": "Narrador masculino cálido en español. Variante 2 creada con MiniMax HD, disponible para nuevas locuciones desde su muestra de referencia.",
+  "language": "es",
+  "default_engine": "minimax",
+  "voice_type": "cloned",
+  "reference_file": "reference.wav",
+  "reference_text": "Hay deseos que llevas tiempo sintiendo, pero todavía no has puesto en palabras. Quizá quieres una oportunidad, una conversación pendiente, o encontrar una dirección que vuelva a ilusionarte. En Mantralia puedes dedicarle un ritual a esa intención.",
+  "preview_file": "preview.wav",
+  "preview_text": "Hay deseos que llevas tiempo sintiendo, pero todavía no has puesto en palabras.\nQuizá quieres una oportunidad, una conversación pendiente, o encontrar una dirección que vuelva a ilusionarte.\nEn Mantralia puedes dedicarle un ritual a esa intención.\nEscribe tu petición al universo. Elige un mandala para acompañarla.\nSi los códigos sagrados forman parte de tus creencias, incorpóralos a tu práctica personal.\nDespués, pregúntate: ¿Qué paso está en mis manos?\nAbre Mantralia y empieza por expresar lo que deseas.",
+  "reference_duration_sec": 14.45,
+  "preview_duration_sec": 30.84778125,
+  "sha256": {
+    "reference.wav": "dcd3e369096052e14a6146a6dae0e624d2b82c9727c85e490f686302f488c344",
+    "preview.wav": "acf02f9804193f9e07505c0ba29f1a674f99fa8aaf0a1ae3c550f6e7cf583807"
+  },
+  "provenance": {
+    "engine": "minimax",
+    "model": "speech-2.8-hd",
+    "method": "Native timbre blend: 75% selected warm reference, 25% Spanish_ThoughtfulMan",
+    "pitch": 0,
+    "master_processing": "Global gain only",
+    "accent_review": "Pending user listening; generated with Spanish language boost",
+    "account_bound_voice_ids_included": false
+  }
+}

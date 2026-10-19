@@ -746,6 +746,12 @@
         "fluent": "Fluent",
         "whisper": "Whisper"
       }
+    },
+    "locution": {
+      "title": "Mantralia · Professional voiceover",
+      "load": "Load podcast script",
+      "hint": "Fluent pacing, persuasive delivery and short pauses. Native Latin American female voice with professional diction; no audible breathing exercises or meditation silences. Listen to review the accent.",
+      "empty": "Clear the text to load the script. Your current text is preserved."
     }
   },
   "main": {
@@ -1232,6 +1238,16 @@
         "description": "Only needed if your MiniMax account requires the GroupId query parameter.",
         "placeholder": "GroupId"
       }
+    },
+    "fish": {
+      "description": "Expressive cloud speech. Use a native Latin American reference voice to preserve its accent. Requires Fish Audio API credits.",
+      "key": "API key",
+      "configured": "Key configured on the server",
+      "missing": "Add your Fish Audio key",
+      "save": "Save",
+      "clear": "Clear stored key",
+      "model": "Model",
+      "failed": "Could not save Fish Audio settings"
     }
   },
   "models": {

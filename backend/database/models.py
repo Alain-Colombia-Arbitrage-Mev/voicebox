@@ -289,6 +289,21 @@ class MiniMaxSettings(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class FishSettings(Base):
+    """Server-side Fish Audio settings; the API never returns the secret."""
+    __tablename__ = "fish_settings"
+    id = Column(Integer, primary_key=True, default=1)
+    api_key = Column(String, nullable=True)
+    model = Column(String, nullable=False, default="s2.1-pro")
+
+
+class FishVoice(Base):
+    """Durable private voice registry, scoped to reference content and account."""
+    __tablename__ = "fish_voices"
+    sample_hash = Column(String, primary_key=True)
+    voice_id = Column(String, nullable=False)
+
+
 class MiniMaxVoice(Base):
     """Registry of voices cloned on MiniMax.
 

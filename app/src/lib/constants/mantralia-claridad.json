@@ -1,0 +1,58 @@
+{
+  "title": "Claridad para avanzar · Locución de podcast",
+  "format": "podcast_promotional",
+  "direction": "Adult Colombian female professional podcast presenter, native soft Bogota accent, Latin American Spanish. Warm full medium-low voice, articulate and credible, engaged conversational delivery, connected phrases, varied natural intonation, subtle persuasive emphasis on claridad, oportunidades, actuar and una. Confident inviting ending. No whispering, sleepy meditation delivery, audible breathing exercises, exaggerated announcer voice or Anglophone pronunciation.",
+  "speed": 1.06,
+  "emotion": "fluent",
+  "target_wpm": "135–155 (orientativo; medir la toma)",
+  "segments": [
+    {
+      "text": "A veces, no te falta esfuerzo. Te falta claridad para saber hacia dónde dirigirlo.",
+      "emotion": "confident",
+      "feeling": "Reconocimiento cercano. Dar peso a esfuerzo y claridad; despertar interés sin dramatizar.",
+      "pause_after": 0.45
+    },
+    {
+      "text": "Pregúntate con calma: ¿Qué necesito hoy para dar mi próximo paso con más claridad? Date un momento. Deja que aparezca una respuesta, aunque todavía sea pequeña.",
+      "emotion": "curious",
+      "feeling": "Curiosidad y complicidad. La pregunta invita a pensar, con ritmo de conversación profesional.",
+      "pause_after": 0.7
+    },
+    {
+      "text": "Si deseas hacer una petición al universo, puedes comenzar con estas palabras: Universo, deseo nuevas oportunidades para mi vida. Ayúdame a reconocerlas y a encontrar el valor para actuar.",
+      "emotion": "hopeful",
+      "feeling": "Apertura y posibilidad. Marcar oportunidades y actuar con convicción, sin solemnidad.",
+      "pause_after": 0.35
+    },
+    {
+      "text": "Quiero construir una prosperidad que me permita vivir con tranquilidad, compartir con quienes amo y desarrollar mis capacidades.",
+      "emotion": "warm",
+      "feeling": "Proyección de un beneficio concreto: tranquilidad, vínculos y crecimiento. Sonrisa leve, audible pero contenida.",
+      "pause_after": 0.35
+    },
+    {
+      "text": "Hoy estoy dispuesto a aprender, a pedir apoyo y a dar un paso hacia lo que deseo. Puedes adaptar esta petición hasta sentir que expresa lo que llevas dentro.",
+      "emotion": "confident",
+      "feeling": "Agencia y confianza. Ligero impulso al enumerar aprender, pedir apoyo y dar un paso.",
+      "pause_after": 0.45
+    },
+    {
+      "text": "Ahora piensa en una acción que esté a tu alcance. Quizá enviar esa propuesta que tienes pendiente. Preparar una conversación importante. Retomar una idea que habías dejado de lado. O descansar para decidir con más calma.",
+      "emotion": "engaging",
+      "feeling": "Aterrizar el deseo en situaciones reconocibles. Variar la entonación entre ejemplos, sin recitar una lista.",
+      "pause_after": 0.45
+    },
+    {
+      "text": "Elige una y piensa cuándo vas a hacerla. Después, repite suavemente: Mis capacidades tienen valor. Mi esfuerzo merece una dirección. Puedo aprender y avanzar a mi ritmo.",
+      "emotion": "confident",
+      "feeling": "Compromiso concreto. Énfasis en una y cuándo. Afirmaciones firmes y conectadas, sin cantadito.",
+      "pause_after": 0.55
+    },
+    {
+      "text": "Respira una vez más, sin forzar. Cuando estés listo, escribe tu intención y el paso que has elegido para hoy. No necesitas tener todas las respuestas. Empieza por una decisión que puedas convertir en acción.",
+      "emotion": "encouraging",
+      "feeling": "Cierre invitacional y resolutivo. Elevar ligeramente la energía en empieza y terminar con cadencia descendente.",
+      "pause_after": 0.6
+    }
+  ]
+}

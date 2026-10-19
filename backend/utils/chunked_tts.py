@@ -257,6 +257,32 @@ async def generate_chunked(
     -------
     (audio, sample_rate) : Tuple[np.ndarray, int]
     """
+    # Resolve exact pauses before ordinary text chunking: markers cannot be
+    # cut across chunks or shortened by crossfade at a reflection boundary.
+    from .directed_speech import render_with_pauses, split_directed_text
+    if '<#' in text or '#>' in text:
+        async def synthesize_phrase(phrase):
+            return await generate_chunked(
+                backend, phrase, voice_prompt, language, seed, instruct,
+                emotion, speed, pitch, max_chunk_chars, crossfade_ms,
+                trim_fn, runaway_detector,
+            )
+        # Obtain the rate from the first phrase without synthesizing it twice.
+        parts = split_directed_text(text)
+        first = next((part.strip() for part in parts[::2] if part.strip()), None)
+        if first is None:
+            raise ValueError("Add spoken text to the meditation")
+        # split_directed_text validates every pause before billable synthesis.
+        first_result = await synthesize_phrase(first)
+        consumed = False
+        async def cached_synthesize(phrase):
+            nonlocal consumed
+            if not consumed:
+                consumed = True
+                return first_result
+            return await synthesize_phrase(phrase)
+        return await render_with_pauses(text, cached_synthesize, first_result[1])
+
     supported_prosody = getattr(backend, "PROSODY_PARAMS", ())
     prosody_kwargs = {
         key: value
