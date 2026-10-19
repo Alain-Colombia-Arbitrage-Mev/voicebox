@@ -1,4 +1,4 @@
-import { Check, Edit, Pause, Play, Plus, Trash2, Volume2, X } from 'lucide-react';
+import { Check, Edit, Loader2, Pause, Play, Plus, Trash2, Volume2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
+import type { EffectConfig } from '@/lib/api/types';
 import { useDeleteSample, useProfileSamples, useUpdateSample } from '@/lib/hooks/useProfiles';
 import { formatAudioDuration } from '@/lib/utils/audio';
 import { cn } from '@/lib/utils/cn';
@@ -22,23 +23,86 @@ import { SampleUpload } from './SampleUpload';
 
 interface MiniSamplePlayerProps {
   audioUrl: string;
+  sampleId: string;
+  effectsChain: EffectConfig[];
 }
 
-function MiniSamplePlayer({ audioUrl }: MiniSamplePlayerProps) {
+function MiniSamplePlayer({ audioUrl, sampleId, effectsChain }: MiniSamplePlayerProps) {
   const { t } = useTranslation();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const resumeRef = useRef({ playing: false, time: 0 });
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [withEffects, setWithEffects] = useState(true);
+  const [preview, setPreview] = useState<{ key: string; url: string } | null>(null);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const chainKey = JSON.stringify(effectsChain);
+  const hasEffects = effectsChain.some((effect) => effect.enabled !== false);
+  const effectsSelected = withEffects && hasEffects;
+  const previewKey = JSON.stringify([audioUrl, chainKey, retry]);
+  const sourceUrl = effectsSelected ? (preview?.key === previewKey ? preview.url : null) : audioUrl;
 
   useEffect(() => {
-    const audio = new Audio(audioUrl);
+    setPreview(null);
+    setError(null);
+    setIsPreparing(effectsSelected);
+    if (!effectsSelected) return;
+
+    const controller = new AbortController();
+    let disposed = false;
+    let blobUrl: string | null = null;
+    // Slider drags render only their latest values; stale responses never play.
+    const timer = setTimeout(async () => {
+      try {
+        const blob = await apiClient.previewSampleEffects(
+          sampleId,
+          JSON.parse(chainKey),
+          controller.signal,
+        );
+        if (disposed) return;
+        blobUrl = URL.createObjectURL(blob);
+        setPreview({ key: previewKey, url: blobUrl });
+      } catch (err) {
+        if (!disposed) setError(err instanceof Error ? err.message : t('common.unknownError'));
+      } finally {
+        if (!disposed) setIsPreparing(false);
+      }
+    }, 250);
+
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+      controller.abort();
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [sampleId, chainKey, previewKey, effectsSelected, t]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    if (!sourceUrl) {
+      audioRef.current = null;
+      return;
+    }
+    const audio = new Audio(sourceUrl);
     audioRef.current = audio;
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
       setIsLoading(false);
+      audio.currentTime = Math.min(resumeRef.current.time, Math.max(0, audio.duration - 0.01));
+      setCurrentTime(audio.currentTime);
+      if (resumeRef.current.playing) {
+        // Some webviews require another click after an asynchronous render.
+        audio.play().catch(() => setIsPlaying(false));
+      }
+      resumeRef.current = { playing: false, time: 0 };
     };
 
     const handleTimeUpdate = () => {
@@ -52,30 +116,38 @@ function MiniSamplePlayer({ audioUrl }: MiniSamplePlayerProps) {
 
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
+    const handleError = () => {
+      setError(t('sampleList.player.loadFailed'));
+      setIsLoading(false);
+    };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
+    audio.addEventListener('error', handleError);
 
     return () => {
+      resumeRef.current = { playing: !audio.paused && !audio.ended, time: audio.currentTime };
       audio.pause();
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('error', handleError);
       audio.src = '';
+      audioRef.current = null;
     };
-  }, [audioUrl]);
+  }, [sourceUrl, t]);
 
   const handlePlayPause = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch(() => setError(t('sampleList.player.loadFailed')));
     }
   };
 
@@ -86,6 +158,7 @@ function MiniSamplePlayer({ audioUrl }: MiniSamplePlayerProps) {
   };
 
   const handleStop = () => {
+    resumeRef.current = { playing: false, time: 0 };
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -96,6 +169,56 @@ function MiniSamplePlayer({ audioUrl }: MiniSamplePlayerProps) {
 
   return (
     <div className="border-t bg-muted/30 px-3 py-2 mt-2">
+      <div className="flex items-center justify-between gap-2 mb-2 text-xs">
+        <span className="text-muted-foreground" aria-live="polite">
+          {isPreparing
+            ? t('sampleList.player.preparing')
+            : effectsSelected
+              ? t('sampleList.player.processed')
+              : t('sampleList.player.original')}
+        </span>
+        {hasEffects && (
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={!withEffects ? 'secondary' : 'ghost'}
+              className="h-7 px-2 text-xs"
+              aria-pressed={!withEffects}
+              onClick={() => setWithEffects(false)}
+            >
+              {t('sampleList.player.original')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={withEffects ? 'secondary' : 'ghost'}
+              className="h-7 px-2 text-xs"
+              aria-pressed={withEffects}
+              onClick={() => setWithEffects(true)}
+            >
+              {t('sampleList.player.processed')}
+            </Button>
+          </div>
+        )}
+      </div>
+      {error && (
+        <div className="flex items-center gap-2 mb-2">
+          <p role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+          {effectsSelected && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setRetry((value) => value + 1)}
+            >
+              {t('sampleList.player.retry')}
+            </Button>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <Button
           type="button"
@@ -103,10 +226,16 @@ function MiniSamplePlayer({ audioUrl }: MiniSamplePlayerProps) {
           size="icon"
           className="h-7 w-7 shrink-0"
           onClick={handlePlayPause}
-          disabled={isLoading}
+          disabled={isLoading || isPreparing || !sourceUrl || !!error}
           aria-label={isPlaying ? t('sampleList.player.pause') : t('sampleList.player.play')}
         >
-          {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 ml-0.5" />}
+          {(isLoading || isPreparing) && !error ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : isPlaying ? (
+            <Pause className="h-3.5 w-3.5" />
+          ) : (
+            <Play className="h-3.5 w-3.5 ml-0.5" />
+          )}
         </Button>
 
         <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -147,9 +276,10 @@ function MiniSamplePlayer({ audioUrl }: MiniSamplePlayerProps) {
 
 interface SampleListProps {
   profileId: string;
+  effectsChain?: EffectConfig[];
 }
 
-export function SampleList({ profileId }: SampleListProps) {
+export function SampleList({ profileId, effectsChain = [] }: SampleListProps) {
   const { t } = useTranslation();
   const { data: samples, isLoading } = useProfileSamples(profileId);
   const deleteSample = useDeleteSample();
@@ -306,7 +436,11 @@ export function SampleList({ profileId }: SampleListProps) {
                     </div>
 
                     {/* Mini Player - Always visible */}
-                    <MiniSamplePlayer audioUrl={apiClient.getSampleUrl(sample.id)} />
+                    <MiniSamplePlayer
+                      audioUrl={apiClient.getSampleUrl(sample.id)}
+                      sampleId={sample.id}
+                      effectsChain={effectsChain}
+                    />
                   </>
                 )}
               </div>

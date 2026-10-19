@@ -10,9 +10,49 @@ from sqlalchemy.orm import Session
 
 from .. import config, models
 from ..services import history
-from ..database import Generation as DBGeneration, get_db
+from ..database import Generation as DBGeneration, ProfileSample as DBProfileSample, get_db
 
 router = APIRouter()
+
+
+async def _stream_effects_preview(source_path, chain_dicts, filename):
+    """Render an audition in memory, leaving reference and library files intact."""
+    from ..utils.effects import apply_effects
+    from ..utils.audio import load_audio
+    import soundfile as sf
+
+    resolved = config.resolve_storage_path(source_path)
+    if resolved is None or not resolved.is_file():
+        raise HTTPException(status_code=404, detail="Source audio file not found")
+
+    audio, sample_rate = await asyncio.to_thread(load_audio, str(resolved))
+    processed = await asyncio.to_thread(apply_effects, audio, sample_rate, chain_dicts)
+    buf = io.BytesIO()
+    await asyncio.to_thread(lambda: sf.write(buf, processed, sample_rate, format="WAV"))
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="audio/wav", headers={
+        "Content-Disposition": f'inline; filename="{filename}.wav"',
+        "Cache-Control": "no-cache, no-store",
+    })
+
+
+@router.post("/effects/preview/sample/{sample_id}")
+async def preview_sample_effects(
+    sample_id: str,
+    data: models.ApplyEffectsRequest,
+    db: Session = Depends(get_db),
+):
+    """Audition the current (possibly unsaved) effects on a voice reference."""
+    from ..utils.effects import validate_effects_chain
+
+    sample = db.query(DBProfileSample).filter_by(id=sample_id).first()
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    chain = [effect.model_dump() for effect in data.effects_chain]
+    error = validate_effects_chain(chain)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    return await _stream_effects_preview(sample.audio_path, chain, f"preview_sample_{sample_id}")
 
 
 @router.post("/effects/preview/{generation_id}")
@@ -29,8 +69,7 @@ async def preview_effects(
         raise HTTPException(status_code=400, detail="Generation is not completed")
 
     from ..services import versions as versions_mod
-    from ..utils.effects import apply_effects, validate_effects_chain
-    from ..utils.audio import load_audio
+    from ..utils.effects import validate_effects_chain
 
     chain_dicts = [e.model_dump() for e in data.effects_chain]
     error = validate_effects_chain(chain_dicts)
@@ -40,27 +79,7 @@ async def preview_effects(
     all_versions = versions_mod.list_versions(generation_id, db)
     clean_version = next((v for v in all_versions if v.effects_chain is None), None)
     source_path = clean_version.audio_path if clean_version else gen.audio_path
-    resolved_source_path = config.resolve_storage_path(source_path)
-    if resolved_source_path is None or not resolved_source_path.exists():
-        raise HTTPException(status_code=404, detail="Source audio file not found")
-
-    audio, sample_rate = await asyncio.to_thread(load_audio, str(resolved_source_path))
-    processed = await asyncio.to_thread(apply_effects, audio, sample_rate, chain_dicts)
-
-    import soundfile as sf
-
-    buf = io.BytesIO()
-    await asyncio.to_thread(lambda: sf.write(buf, processed, sample_rate, format="WAV"))
-    buf.seek(0)
-
-    return StreamingResponse(
-        buf,
-        media_type="audio/wav",
-        headers={
-            "Content-Disposition": f'inline; filename="preview_{generation_id}.wav"',
-            "Cache-Control": "no-cache, no-store",
-        },
-    )
+    return await _stream_effects_preview(source_path, chain_dicts, f"preview_{generation_id}")
 
 
 @router.get("/effects/available", response_model=models.AvailableEffectsResponse)

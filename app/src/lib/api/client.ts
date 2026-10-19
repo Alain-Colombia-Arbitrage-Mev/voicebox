@@ -988,11 +988,28 @@ class ApiClient {
   }
 
   async previewEffects(generationId: string, effectsChain: EffectConfig[]): Promise<Blob> {
-    const url = `${this.getBaseUrl()}/effects/preview/${generationId}`;
+    return this.fetchEffectsPreview(`/effects/preview/${generationId}`, effectsChain);
+  }
+
+  async previewSampleEffects(
+    sampleId: string,
+    effectsChain: EffectConfig[],
+    signal?: AbortSignal,
+  ): Promise<Blob> {
+    return this.fetchEffectsPreview(`/effects/preview/sample/${sampleId}`, effectsChain, signal);
+  }
+
+  private async fetchEffectsPreview(
+    path: string,
+    effectsChain: EffectConfig[],
+    signal?: AbortSignal,
+  ): Promise<Blob> {
+    const url = `${this.getBaseUrl()}${path}`;
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ effects_chain: effectsChain }),
+      signal,
     });
 
     if (!response.ok) {

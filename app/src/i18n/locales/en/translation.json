@@ -389,6 +389,11 @@
       "deleting": "Deleting…"
     },
     "player": {
+      "original": "Original",
+      "processed": "With effects",
+      "preparing": "Preparing audio with effects…",
+      "retry": "Retry",
+      "loadFailed": "Could not play this sample. Try again or choose Original.",
       "play": "Play sample",
       "pause": "Pause sample",
       "stop": "Stop",

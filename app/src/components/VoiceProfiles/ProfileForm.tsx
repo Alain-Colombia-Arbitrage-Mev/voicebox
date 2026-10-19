@@ -1225,7 +1225,10 @@ export function ProfileForm() {
                       </div>
                     ) : (
                       <div>
-                        <SampleList profileId={editingProfileId} />
+                        <SampleList
+                          profileId={editingProfileId}
+                          effectsChain={profileEffectsChain}
+                        />
                       </div>
                     ))
                   )}

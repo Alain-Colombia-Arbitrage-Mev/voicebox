@@ -110,6 +110,8 @@ def api(tmp_path, monkeypatch):
         db.add(database.VoiceProfile(id="voice", name="Spanish narrator", language="es"))
         db.add(database.Generation(id="recording", profile_id="voice", text="Respira con calma.",
                                    audio_path="original.wav", status="completed"))
+        db.add(database.ProfileSample(id="sample", profile_id="voice", audio_path="original.wav",
+                                     reference_text="Respira con calma."))
         db.commit()
 
     def get_db():
@@ -150,3 +152,31 @@ def test_saved_mastering_chain_can_save_preview_and_create_a_version(api, name):
     assert version.status_code == 200, version.text
     assert version.json()["effects_chain"] == chain
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
+
+
+def test_reference_audition_uses_draft_effects_without_overwriting_original(api):
+    client, source = api
+    original_bytes = source.read_bytes()
+    original, _ = sf.read(source)
+    rendered = []
+    for chain in [[], [effect("gain", gain_db=-12.0)],
+                  [{**effect("gain", gain_db=-12.0), "enabled": False}]]:
+        response = client.post("/effects/preview/sample/sample", json={"effects_chain": chain})
+        assert response.status_code == 200, response.text
+        audio, rate = sf.read(io.BytesIO(response.content))
+        assert rate == 24000 and audio.shape == original.shape
+        assert "no-store" in response.headers["cache-control"]
+        rendered.append(audio)
+    assert abs(gain_db(original, rendered[1]) + 12.0) < 0.02
+    np.testing.assert_array_equal(original, rendered[0])
+    np.testing.assert_array_equal(original, rendered[2])
+    assert source.read_bytes() == original_bytes
+    assert client.get("/profiles/voice").json()["effects_chain"] is None
+    assert client.get("/generations/recording/versions").json() == []
+
+
+def test_reference_audition_rejects_missing_samples_and_invalid_chains(api):
+    client, _ = api
+    assert client.post("/effects/preview/sample/missing", json={"effects_chain": []}).status_code == 404
+    response = client.post("/effects/preview/sample/sample", json={"effects_chain": [effect("unknown")]})
+    assert response.status_code == 400

@@ -350,7 +350,7 @@ export function VoiceInspector({ profileId }: VoiceInspectorProps) {
 
             {/* Samples */}
             <div className="px-5 pb-5">
-              <SampleList profileId={profileId} />
+              <SampleList profileId={profileId} effectsChain={effectsChain} />
             </div>
           </form>
         </Form>

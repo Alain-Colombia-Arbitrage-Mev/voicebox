@@ -151,6 +151,7 @@ Presets are saved effects chains that can be reused across generations.
 | /effects/presets/:id | PUT | Update a user preset |
 | /effects/presets/:id | DELETE | Delete a user preset |
 | /effects/preview/:generation_id | POST | Preview effects on a generation (returns audio stream) |
+| /effects/preview/sample/:sample_id | POST | Audition draft effects on an unchanged voice reference |
 
 ### Generation Versions
 
@@ -219,6 +220,15 @@ processed = await asyncio.to_thread(lambda: board(audio, sample_rate))
 ```
 
 ### Frontend Integration
+
+The Voices sample player compares **Original** and **With effects**, using the
+current editor chain even before it is saved. Sample previews are rendered in
+memory by the same DSP engine as generation previews; they do not overwrite the
+cloning reference, create a library generation, or call a TTS provider. Slider
+changes are debounced, obsolete requests are aborted and their blob URLs are
+revoked. Switching sources preserves the playhead and resumes playback when the
+webview allows it. A failed preview stays visibly failed instead of playing the
+original under the effects label.
 
 **Key components:**
 
