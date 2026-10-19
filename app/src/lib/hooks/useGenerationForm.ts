@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
 import type { EffectConfig } from '@/lib/api/types';
+import { engineSupportsInstruct } from '@/lib/constants/engines';
 import { LANGUAGE_CODES, type LanguageCode } from '@/lib/constants/languages';
 import { useGeneration } from '@/lib/hooks/useGeneration';
 import { useModelDownloadToast } from '@/lib/hooks/useModelDownloadToast';
@@ -22,6 +23,7 @@ const generationSchema = z.object({
     .enum([
       'qwen',
       'qwen_custom_voice',
+      'qwen_voice_design',
       'luxtts',
       'chatterbox',
       'chatterbox_turbo',
@@ -29,10 +31,21 @@ const generationSchema = z.object({
       'kokoro',
       'minimax',
       'fish',
+      'omnivoice',
     ])
     .optional(),
   emotion: z
-    .enum(['happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'calm', 'fluent', 'whisper'])
+    .enum([
+      'happy',
+      'sad',
+      'angry',
+      'fearful',
+      'disgusted',
+      'surprised',
+      'calm',
+      'fluent',
+      'whisper',
+    ])
     .optional(),
   speed: z.number().min(0.5).max(2.0).optional(),
   pitch: z.number().int().min(-12).max(12).optional(),
@@ -95,45 +108,57 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
     try {
       const engine = data.engine || 'qwen';
       const modelName =
-        engine === 'fish' ? 'fish-speech' : engine === 'luxtts'
-          ? 'luxtts'
-          : engine === 'chatterbox'
-            ? 'chatterbox-tts'
-            : engine === 'chatterbox_turbo'
-              ? 'chatterbox-turbo'
-              : engine === 'tada'
-                ? data.modelSize === '3B'
-                  ? 'tada-3b-ml'
-                  : 'tada-1b'
-                : engine === 'kokoro'
-                  ? 'kokoro'
-                  : engine === 'minimax'
-                    ? 'minimax-speech'
-                    : engine === 'qwen_custom_voice'
-                      ? `qwen-custom-voice-${data.modelSize}`
-                      : `qwen-tts-${data.modelSize}`;
+        engine === 'fish'
+          ? 'fish-speech'
+          : engine === 'luxtts'
+            ? 'luxtts'
+            : engine === 'chatterbox'
+              ? 'chatterbox-tts'
+              : engine === 'chatterbox_turbo'
+                ? 'chatterbox-turbo'
+                : engine === 'tada'
+                  ? data.modelSize === '3B'
+                    ? 'tada-3b-ml'
+                    : 'tada-1b'
+                  : engine === 'kokoro'
+                    ? 'kokoro'
+                    : engine === 'minimax'
+                      ? 'minimax-speech'
+                      : engine === 'qwen_voice_design'
+                        ? 'qwen-voice-design-1.7B'
+                        : engine === 'omnivoice'
+                          ? 'omnivoice'
+                          : engine === 'qwen_custom_voice'
+                            ? `qwen-custom-voice-${data.modelSize}`
+                            : `qwen-tts-${data.modelSize}`;
       const displayName =
-        engine === 'fish' ? 'Fish Audio (Cloud)' : engine === 'luxtts'
-          ? 'LuxTTS'
-          : engine === 'chatterbox'
-            ? 'Chatterbox TTS'
-            : engine === 'chatterbox_turbo'
-              ? 'Chatterbox Turbo'
-              : engine === 'tada'
-                ? data.modelSize === '3B'
-                  ? 'TADA 3B Multilingual'
-                  : 'TADA 1B'
-                : engine === 'kokoro'
-                  ? 'Kokoro 82M'
-                  : engine === 'minimax'
-                    ? 'MiniMax Speech (Cloud)'
-                    : engine === 'qwen_custom_voice'
-                      ? data.modelSize === '1.7B'
-                        ? 'Qwen CustomVoice 1.7B'
-                        : 'Qwen CustomVoice 0.6B'
-                      : data.modelSize === '1.7B'
-                        ? 'Qwen TTS 1.7B'
-                        : 'Qwen TTS 0.6B';
+        engine === 'fish'
+          ? 'Fish Audio (Cloud)'
+          : engine === 'luxtts'
+            ? 'LuxTTS'
+            : engine === 'chatterbox'
+              ? 'Chatterbox TTS'
+              : engine === 'chatterbox_turbo'
+                ? 'Chatterbox Turbo'
+                : engine === 'tada'
+                  ? data.modelSize === '3B'
+                    ? 'TADA 3B Multilingual'
+                    : 'TADA 1B'
+                  : engine === 'kokoro'
+                    ? 'Kokoro 82M'
+                    : engine === 'minimax'
+                      ? 'MiniMax Speech (Cloud)'
+                      : engine === 'qwen_voice_design'
+                        ? 'Qwen VoiceDesign 1.7B'
+                        : engine === 'omnivoice'
+                          ? 'OmniVoice'
+                          : engine === 'qwen_custom_voice'
+                            ? data.modelSize === '1.7B'
+                              ? 'Qwen CustomVoice 1.7B'
+                              : 'Qwen CustomVoice 0.6B'
+                            : data.modelSize === '1.7B'
+                              ? 'Qwen TTS 1.7B'
+                              : 'Qwen TTS 0.6B';
 
       // Check if model needs downloading (cloud engines are always available)
       if (engine !== 'minimax' && engine !== 'fish') {
@@ -154,7 +179,7 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         engine === 'qwen' || engine === 'qwen_custom_voice' || engine === 'tada';
       // Only Qwen CustomVoice actually honors the instruct kwarg at model level.
       // Base Qwen3-TTS accepts the kwarg but ignores it.
-      const supportsInstruct = engine === 'qwen_custom_voice' || engine === 'fish';
+      const supportsInstruct = engineSupportsInstruct(engine);
       // Prosody controls only apply to engines that honor them.
       const supportsEmotion = engine === 'minimax' || engine === 'fish';
       const supportsSpeed = engine === 'minimax' || engine === 'fish' || engine === 'kokoro';

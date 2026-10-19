@@ -16,11 +16,28 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AudioWaveform, Download, Music, Plus, Upload } from 'lucide-react';
+import {
+  AudioWaveform,
+  BookAudio,
+  ChevronDown,
+  Download,
+  FileAudio,
+  Music,
+  Plus,
+  Upload,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Loader from 'react-loaders';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -32,6 +49,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
+import type { StoryExportFormat } from '@/lib/api/types';
 import { useHistory } from '@/lib/hooks/useHistory';
 import {
   useAddStoryItem,
@@ -235,13 +253,14 @@ export function StoryContent() {
     );
   };
 
-  const handleExportAudio = () => {
+  const handleExportAudio = (format: StoryExportFormat) => {
     if (!story) return;
 
     exportAudio.mutate(
       {
         storyId: story.id,
         storyName: story.name,
+        format,
       },
       {
         onError: (error) => {
@@ -554,11 +573,21 @@ export function StoryContent() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="60" className="text-xs">1 min</SelectItem>
-                      <SelectItem value="300" className="text-xs">5 min</SelectItem>
-                      <SelectItem value="600" className="text-xs">10 min</SelectItem>
-                      <SelectItem value="1200" className="text-xs">20 min</SelectItem>
-                      <SelectItem value="1800" className="text-xs">30 min</SelectItem>
+                      <SelectItem value="60" className="text-xs">
+                        1 min
+                      </SelectItem>
+                      <SelectItem value="300" className="text-xs">
+                        5 min
+                      </SelectItem>
+                      <SelectItem value="600" className="text-xs">
+                        10 min
+                      </SelectItem>
+                      <SelectItem value="1200" className="text-xs">
+                        20 min
+                      </SelectItem>
+                      <SelectItem value="1800" className="text-xs">
+                        30 min
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
@@ -615,15 +644,33 @@ export function StoryContent() {
             </PopoverContent>
           </Popover>
           {story.items.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportAudio}
-              disabled={exportAudio.isPending}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              {t('storyContent.exportAudio')}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={exportAudio.isPending}>
+                  <Download className="mr-2 h-4 w-4" />
+                  {t('storyContent.exportAudio')}
+                  <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuLabel className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                  {t('storyContent.exportDropdownLabel')}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleExportAudio('wav')}>
+                  <FileAudio className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                  {t('storyContent.exportFormats.wav')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportAudio('mp3')}>
+                  <FileAudio className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                  {t('storyContent.exportFormats.mp3')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportAudio('m4b')}>
+                  <BookAudio className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                  {t('storyContent.exportFormats.m4b')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>

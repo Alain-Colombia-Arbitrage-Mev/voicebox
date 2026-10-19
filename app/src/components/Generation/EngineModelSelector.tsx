@@ -21,6 +21,7 @@ const ENGINE_OPTIONS = [
   { value: 'qwen:0.6B', label: 'Qwen3-TTS 0.6B', engine: 'qwen' },
   { value: 'qwen_custom_voice:1.7B', label: 'Qwen CustomVoice 1.7B', engine: 'qwen_custom_voice' },
   { value: 'qwen_custom_voice:0.6B', label: 'Qwen CustomVoice 0.6B', engine: 'qwen_custom_voice' },
+  { value: 'qwen_voice_design', label: 'Qwen VoiceDesign 1.7B', engine: 'qwen_voice_design' },
   { value: 'luxtts', label: 'LuxTTS', engine: 'luxtts' },
   { value: 'chatterbox', label: 'Chatterbox', engine: 'chatterbox' },
   { value: 'chatterbox_turbo', label: 'Chatterbox Turbo', engine: 'chatterbox_turbo' },
@@ -29,11 +30,13 @@ const ENGINE_OPTIONS = [
   { value: 'kokoro', label: 'Kokoro 82M', engine: 'kokoro' },
   { value: 'fish', label: 'Fish Audio (Cloud)', engine: 'fish' },
   { value: 'minimax', label: 'MiniMax Speech (Cloud)', engine: 'minimax' },
+  { value: 'omnivoice', label: 'OmniVoice (non-commercial)', engine: 'omnivoice' },
 ] as const;
 
 const ENGINE_DESCRIPTIONS: Record<string, string> = {
   qwen: 'Multi-language, two sizes',
   qwen_custom_voice: '9 preset voices, instruct control',
+  qwen_voice_design: 'Voices described in plain language',
   luxtts: 'Fast, English-focused',
   chatterbox: '23 languages, incl. Hebrew',
   chatterbox_turbo: 'English, [laugh] [cough] tags',
@@ -41,6 +44,7 @@ const ENGINE_DESCRIPTIONS: Record<string, string> = {
   kokoro: '82M params, CPU realtime, 8 langs',
   fish: 'Cloud API, native voice reference, S2 emotion and breath cues',
   minimax: 'Cloud API, emotion + speed control, cloning',
+  omnivoice: '23 languages, voice design. CC-BY-NC weights: non-commercial use only',
 };
 
 /** Engines that only support English and should force language to 'en' on select. */
@@ -55,11 +59,14 @@ const CLONING_ENGINES = new Set([
   'tada',
   'minimax',
   'fish',
+  'omnivoice',
 ]);
 
 /** Engines with per-generation prosody controls (emotion select, speed slider). */
 export const EMOTION_ENGINES = new Set(['minimax', 'fish']);
 export const SPEED_ENGINES = new Set(['minimax', 'fish', 'kokoro']);
+/** Engines that synthesise a voice from a written description. */
+export const DESIGN_ENGINES = new Set(['qwen_voice_design']);
 
 function getAvailableOptions(selectedProfile?: VoiceProfileResponse | null) {
   if (!selectedProfile) return ENGINE_OPTIONS;
@@ -182,5 +189,6 @@ export function isProfileCompatibleWithEngine(
   const voiceType = profile.voice_type || 'cloned';
   if (voiceType === 'preset') return profile.preset_engine === engine;
   if (voiceType === 'cloned') return CLONING_ENGINES.has(engine);
-  return true; // designed — future
+  if (voiceType === 'designed') return DESIGN_ENGINES.has(engine);
+  return true;
 }

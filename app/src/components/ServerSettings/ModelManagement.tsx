@@ -73,10 +73,14 @@ const MODEL_DESCRIPTIONS: Record<string, string> = {
     'Fish Audio hosted S2 speech with reference voices, inline emotion, breath cues and exact reflection pauses. Configure the API key in Settings → Generation. No download.',
   'minimax-speech':
     'MiniMax Speech cloud API. Instant voice cloning with emotion, speed and pitch control across 20+ languages. Requires a MiniMax API key (Settings → MiniMax). No local download.',
+  omnivoice:
+    'OmniVoice by k2-fsa. Zero-shot voice cloning via a diffusion language model, plus attribute-based voice design (gender, age, pitch, accent). The model covers 600+ languages; Voicebox exposes the 23 in its own language list. 24kHz output. NON-COMMERCIAL: the weights are CC-BY-NC (code is Apache 2.0; the bundled Higgs Audio V2 codec is under the Boson community licence), so do not use output commercially.',
   'qwen-custom-voice-1.7B':
     'Qwen3-TTS CustomVoice 1.7B by Alibaba. 9 premium preset voices with instruct-based style control for tone, emotion, and prosody. Supports 10 languages.',
   'qwen-custom-voice-0.6B':
     'Qwen3-TTS CustomVoice 0.6B by Alibaba. Lightweight version with the same 9 preset voices and instruct control. Faster inference for lower-end hardware.',
+  'qwen-voice-design-1.7B':
+    'Qwen3-TTS VoiceDesign 1.7B by Alibaba. Builds a voice from a written description instead of reference audio or a preset. Supports the same 10 languages.',
   'whisper-base':
     'Smallest Whisper model (74M parameters). Fast transcription with moderate accuracy.',
   'whisper-small':
@@ -415,12 +419,14 @@ export function ModelManagement() {
       (m) =>
         m.model_name.startsWith('qwen-tts') ||
         m.model_name.startsWith('qwen-custom-voice') ||
+        m.model_name.startsWith('qwen-voice-design') ||
         m.model_name.startsWith('luxtts') ||
         m.model_name.startsWith('chatterbox') ||
         m.model_name.startsWith('tada') ||
         m.model_name.startsWith('kokoro') ||
         m.model_name.startsWith('minimax') ||
-        m.model_name.startsWith('fish'),
+        m.model_name.startsWith('fish') ||
+        m.model_name.startsWith('omnivoice'),
     ) ?? [];
   const whisperModels = modelStatus?.models.filter((m) => m.model_name.startsWith('whisper')) ?? [];
   const llmModels = modelStatus?.models.filter((m) => m.model_name.startsWith('qwen3-')) ?? [];

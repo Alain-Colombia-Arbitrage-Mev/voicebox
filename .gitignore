@@ -72,3 +72,4 @@ backend/tests/fixtures/reference_voice.txt
 # Local AI assistant workspace settings
 .claude/settings.local.json
 .venv/
+tauri/src-tauri/gen/schemas/linux-schema.json

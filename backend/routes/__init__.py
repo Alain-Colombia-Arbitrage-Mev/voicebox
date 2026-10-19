@@ -28,6 +28,7 @@ def register_routers(app: FastAPI) -> None:
     from .music import router as music_router
     from .frequencies import router as frequencies_router
     from .library import router as library_router
+    from .openai_compat import router as openai_compat_router
 
     app.include_router(health_router)
     app.include_router(profiles_router)
@@ -52,3 +53,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(music_router)
     app.include_router(frequencies_router)
     app.include_router(library_router)
+    app.include_router(openai_compat_router)
