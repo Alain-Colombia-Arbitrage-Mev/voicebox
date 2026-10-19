@@ -25,7 +25,6 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { SampleList } from '@/components/VoiceProfiles/SampleList';
-import { apiClient } from '@/lib/api/client';
 import type { EffectConfig } from '@/lib/api/types';
 import { LANGUAGE_CODES, LANGUAGE_OPTIONS, type LanguageCode } from '@/lib/constants/languages';
 import { BOTTOM_SAFE_AREA_PADDING } from '@/lib/constants/ui';
@@ -33,6 +32,7 @@ import {
   useDeleteAvatar,
   useProfile,
   useUpdateProfile,
+  useUpdateProfileEffects,
   useUploadAvatar,
 } from '@/lib/hooks/useProfiles';
 import { cn } from '@/lib/utils/cn';
@@ -63,6 +63,7 @@ export function VoiceInspector({ profileId }: VoiceInspectorProps) {
   const audioUrl = usePlayerStore((state) => state.audioUrl);
   const isPlayerVisible = !!audioUrl;
   const updateProfile = useUpdateProfile();
+  const updateEffects = useUpdateProfileEffects();
   const uploadAvatar = useUploadAvatar();
   const deleteAvatar = useDeleteAvatar();
   const serverUrl = useServerStore((state) => state.serverUrl);
@@ -174,10 +175,10 @@ export function VoiceInspector({ profileId }: VoiceInspectorProps) {
 
       if (effectsDirty) {
         try {
-          await apiClient.updateProfileEffects(
+          await updateEffects.mutateAsync({
             profileId,
-            effectsChain.length > 0 ? effectsChain : null,
-          );
+            effectsChain: effectsChain.length > 0 ? effectsChain : null,
+          });
           setEffectsDirty(false);
         } catch (fxError) {
           toast({

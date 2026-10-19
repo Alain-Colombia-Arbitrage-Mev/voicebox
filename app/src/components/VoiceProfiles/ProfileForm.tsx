@@ -47,6 +47,7 @@ import {
   useDeleteProfile,
   useProfile,
   useUpdateProfile,
+  useUpdateProfileEffects,
   useUploadAvatar,
 } from '@/lib/hooks/useProfiles';
 import { useSystemAudioCapture } from '@/lib/hooks/useSystemAudioCapture';
@@ -149,6 +150,7 @@ export function ProfileForm() {
   const { data: editingProfile } = useProfile(editingProfileId || '');
   const createProfile = useCreateProfile();
   const updateProfile = useUpdateProfile();
+  const updateEffects = useUpdateProfileEffects();
   const addSample = useAddSample();
   const deleteProfile = useDeleteProfile();
   const uploadAvatar = useUploadAvatar();
@@ -538,10 +540,10 @@ export function ProfileForm() {
         // Save effects chain if changed
         if (effectsDirty) {
           try {
-            await apiClient.updateProfileEffects(
-              editingProfileId,
-              profileEffectsChain.length > 0 ? profileEffectsChain : null,
-            );
+            await updateEffects.mutateAsync({
+              profileId: editingProfileId,
+              effectsChain: profileEffectsChain.length > 0 ? profileEffectsChain : null,
+            });
           } catch (fxError) {
             toast({
               title: t('profileForm.toast.effectsUpdateFailed'),
