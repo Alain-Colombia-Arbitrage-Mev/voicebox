@@ -187,6 +187,16 @@ Request body for applying effects:
 
 The EFFECT_REGISTRY dict in utils/effects.py defines all available effects with their parameters, defaults, and ranges.
 
+Saved Spanish-studio presets also use `deesser`, `peak_eq`, and `high_shelf`.
+The de-esser splits the signal into complementary low and high bands and
+compresses only the high band before recombining them. Its parameters
+include `frequency_hz`, `threshold_db`, and `ratio`; omitted `attack_ms` and
+`release_ms` use 1 ms and 80 ms. The two equalizers accept
+`cutoff_frequency_hz`, `gain_db`, and `q`. All three run through native
+[Pedalboard plugins](https://spotify.github.io/pedalboard/reference/pedalboard.html),
+including in the frozen desktop server. The editor discovers their controls
+from `/effects/available`, so no separate frontend effect list is needed.
+
 **Validation:**
 
 Effects chains are validated before application:

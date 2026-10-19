@@ -15,6 +15,9 @@ Supported effect types:
   - highpass     (high-pass filter)
   - lowpass      (low-pass filter)
   - pitch_shift (semitone pitch shifting)
+  - deesser     (split-band sibilance compression)
+  - peak_eq     (parametric peak equalization)
+  - high_shelf  (high-frequency shelving equalization)
 """
 
 from __future__ import annotations
@@ -33,7 +36,34 @@ from pedalboard import (
     Delay,
     NoiseGate,
     PitchShift,
+    Chain,
+    Mix,
+    PeakFilter,
+    HighShelfFilter,
 )
+
+
+def _make_deesser(
+    frequency_hz: float,
+    threshold_db: float,
+    ratio: float,
+    attack_ms: float,
+    release_ms: float,
+) -> Mix:
+    """Compress only the high band and recombine with the untouched low band.
+
+    Matching first-order crossovers sum to unity when compression is inactive.
+    Keeping this as a native plugin graph preserves chain order and lets the
+    same processing run in previews, generation and the frozen desktop server.
+    """
+    return Mix([
+        LowpassFilter(cutoff_frequency_hz=frequency_hz),
+        Chain([
+            HighpassFilter(cutoff_frequency_hz=frequency_hz),
+            Compressor(threshold_db=threshold_db, ratio=ratio,
+                       attack_ms=attack_ms, release_ms=release_ms),
+        ]),
+    ])
 
 
 # Each param definition: (default, min, max, description)
@@ -160,6 +190,38 @@ EFFECT_REGISTRY: Dict[str, Dict[str, Any]] = {
         "description": "Shift pitch up or down by semitones.",
         "params": {
             "semitones": {"default": 0.0, "min": -12.0, "max": 12.0, "step": 0.5, "description": "Semitones to shift"},
+        },
+    },
+    "deesser": {
+        "cls": _make_deesser,
+        "label": "De-Esser",
+        "description": "Softens sibilant consonants by compressing the high-frequency band.",
+        "params": {
+            "frequency_hz": {"default": 6500.0, "min": 2000.0, "max": 12000.0, "step": 100.0, "description": "High-band crossover (Hz)"},
+            "threshold_db": {"default": -38.0, "min": -60.0, "max": 0.0, "step": 0.5, "description": "Sibilance threshold (dB)"},
+            "ratio": {"default": 5.0, "min": 1.0, "max": 20.0, "step": 0.1, "description": "High-band compression ratio"},
+            "attack_ms": {"default": 1.0, "min": 0.1, "max": 100.0, "step": 0.1, "description": "Attack time (ms)"},
+            "release_ms": {"default": 80.0, "min": 10.0, "max": 1000.0, "step": 1.0, "description": "Release time (ms)"},
+        },
+    },
+    "peak_eq": {
+        "cls": PeakFilter,
+        "label": "Peak EQ",
+        "description": "Boosts or cuts frequencies around a selected center frequency.",
+        "params": {
+            "cutoff_frequency_hz": {"default": 3000.0, "min": 20.0, "max": 20000.0, "step": 10.0, "description": "Center frequency (Hz)"},
+            "gain_db": {"default": 0.0, "min": -24.0, "max": 24.0, "step": 0.5, "description": "Gain (dB)"},
+            "q": {"default": 0.8, "min": 0.1, "max": 10.0, "step": 0.1, "description": "Resonance / bandwidth (Q)"},
+        },
+    },
+    "high_shelf": {
+        "cls": HighShelfFilter,
+        "label": "High Shelf EQ",
+        "description": "Boosts or cuts frequencies above the selected cutoff.",
+        "params": {
+            "cutoff_frequency_hz": {"default": 7000.0, "min": 20.0, "max": 20000.0, "step": 10.0, "description": "Cutoff frequency (Hz)"},
+            "gain_db": {"default": 0.0, "min": -24.0, "max": 24.0, "step": 0.5, "description": "Gain (dB)"},
+            "q": {"default": 0.7, "min": 0.1, "max": 10.0, "step": 0.1, "description": "Resonance (Q)"},
         },
     },
 }
