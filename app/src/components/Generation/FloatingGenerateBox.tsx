@@ -701,7 +701,9 @@ export function FloatingGenerateBox({
                           <FormItem className="flex-1 space-y-0">
                             <Select
                               value={field.value ?? 'auto'}
-                              onValueChange={(v) => field.onChange(v === 'auto' ? undefined : v)}
+                              onValueChange={(v) => {
+                                if (v) field.onChange(v === 'auto' ? undefined : v);
+                              }}
                             >
                               <FormControl>
                                 <SelectTrigger className="h-8 text-xs bg-card border-border rounded-full hover:bg-background/50 transition-all">
@@ -731,7 +733,9 @@ export function FloatingGenerateBox({
                           <FormItem className="flex-1 space-y-0">
                             <Select
                               value={String(field.value ?? 1.0)}
-                              onValueChange={(v) => field.onChange(parseFloat(v))}
+                              onValueChange={(v) => {
+                                if (v && Number.isFinite(Number(v))) field.onChange(Number(v));
+                              }}
                             >
                               <FormControl>
                                 <SelectTrigger className="h-8 text-xs bg-card border-border rounded-full hover:bg-background/50 transition-all">
@@ -766,7 +770,9 @@ export function FloatingGenerateBox({
                           <FormItem className="flex-1 space-y-0">
                             <Select
                               value={String(field.value ?? 0)}
-                              onValueChange={(v) => field.onChange(parseInt(v, 10))}
+                              onValueChange={(v) => {
+                                if (v && Number.isInteger(Number(v))) field.onChange(Number(v));
+                              }}
                             >
                               <FormControl>
                                 <SelectTrigger className="h-8 text-xs bg-card border-border rounded-full hover:bg-background/50 transition-all">
