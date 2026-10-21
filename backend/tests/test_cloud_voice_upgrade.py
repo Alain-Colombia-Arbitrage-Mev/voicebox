@@ -53,13 +53,14 @@ async def test_saved_cloud_voice_generates_with_its_prosody_and_pauses(tmp_path,
         with factory() as db:
             db.add(database.VoiceProfile(id="voice", name="Warm Spanish variant", language="es",
                 voice_type="cloned", default_engine=engine, default_emotion="calm",
-                default_speed=0.95, default_pitch=0))
+                default_speed=0.95, default_pitch=0,
+                effects_chain='[{"type":"gain","enabled":true,"params":{"gain_db":6.0}}]'))
             db.add(database.ProfileSample(id="sample", profile_id="voice", audio_path="reference.wav",
                 reference_text="Hay deseos que llevas tiempo sintiendo."))
             db.commit()
             request = models.GenerationRequest(profile_id="voice", text="Pregunta. <#0.25#> Responde.",
                                                language="es", normalize=False,
-                                               **({"speed": 1.0, "pitch": 0, "emotion": None} if override else {}))
+                                               **({"speed": 1.0, "pitch": 0, "emotion": None, "effects_chain": []} if override else {}))
             result = await generations.generate_speech(request, db)
             assert request.engine is None
         assert len(queued) == 1
@@ -73,6 +74,7 @@ async def test_saved_cloud_voice_generates_with_its_prosody_and_pauses(tmp_path,
             assert rate == 1000
             assert len(audio) == 450
             np.testing.assert_array_equal(audio[100:350], np.zeros(250))
+            assert audio[50] == pytest.approx(0.2 if override else 0.2 * 10 ** (6 / 20), abs=1 / 32768)
         assert [text for text, _ in calls] == ["Pregunta.", "Responde."]
         assert all(kwargs["language"] == "es" and kwargs["speed"] == (1.0 if override else 0.95) and
                    kwargs.get("emotion") == (None if override else "calm") and kwargs["pitch"] == 0 for _, kwargs in calls)

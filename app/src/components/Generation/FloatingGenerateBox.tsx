@@ -96,7 +96,7 @@ export function FloatingGenerateBox({
       }
     },
     getEffectsChain: () => {
-      if (!selectedPresetId) return undefined;
+      if (!selectedPresetId) return [];
       // Profile's own effects chain (no matching preset)
       if (selectedPresetId === '_profile') {
         return selectedProfile?.effects_chain ?? undefined;

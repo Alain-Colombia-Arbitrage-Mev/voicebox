@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "listening_review_status": "needs_user_review",
   "name": "lauramedita",
   "description": "Referencia española original; MiniMax HD con velocidad calibrada y sin desplazamiento de tono.",
   "language": "es",

@@ -197,7 +197,7 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         max_chunk_chars: maxChunkChars,
         crossfade_ms: crossfadeMs,
         normalize: normalizeAudio,
-        effects_chain: effectsChain?.length ? effectsChain : undefined,
+        effects_chain: effectsChain,
       });
 
       // Track this generation for SSE status updates
