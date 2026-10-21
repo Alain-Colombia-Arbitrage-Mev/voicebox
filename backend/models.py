@@ -2,7 +2,7 @@
 Pydantic models for request/response validation.
 """
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StrictBool, model_validator
 from typing import Any, Optional, List
 from datetime import datetime
 
@@ -10,6 +10,14 @@ from .utils.capture_chords import (
     default_push_to_talk_chord,
     default_toggle_to_talk_chord,
 )
+
+
+class MiniMaxCloneOptions(BaseModel):
+    """Reference preparation used when creating or recovering a MiniMax clone."""
+
+    model_config = {"extra": "forbid"}
+    need_noise_reduction: StrictBool = False
+    need_volume_normalization: StrictBool = False
 
 
 class VoiceProfileCreate(BaseModel):
@@ -29,6 +37,7 @@ class VoiceProfileCreate(BaseModel):
     default_emotion: Optional[str] = Field(None, pattern="^(happy|sad|angry|fearful|disgusted|surprised|calm|fluent|whisper)$")
     default_speed: Optional[float] = Field(None, ge=0.5, le=2.0)
     default_pitch: Optional[int] = Field(None, ge=-12, le=12)
+    minimax_clone_options: Optional[MiniMaxCloneOptions] = None
 
 
 class VoiceProfileResponse(BaseModel):
@@ -49,6 +58,7 @@ class VoiceProfileResponse(BaseModel):
     default_emotion: Optional[str] = None
     default_speed: Optional[float] = None
     default_pitch: Optional[int] = None
+    minimax_clone_options: Optional[MiniMaxCloneOptions] = None
     generation_count: int = 0
     sample_count: int = 0
     created_at: datetime

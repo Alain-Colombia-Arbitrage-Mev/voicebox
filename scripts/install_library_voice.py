@@ -38,6 +38,12 @@ def install(bundle: Path, server: str):
             r.raise_for_status()
             return r.json()
 
+        if spec.get("minimax_clone_options"):
+            schema = get("/openapi.json")
+            fields = schema["components"]["schemas"]["VoiceProfileCreate"]["properties"]
+            if "minimax_clone_options" not in fields:
+                raise RuntimeError("Update Voicebox before installing this voice: MiniMax reference cleanup is required")
+
         profile = next((p for p in get("/profiles") if p["name"] == spec["name"]), None)
         created = profile is None
         if created:
@@ -62,7 +68,7 @@ def install(bundle: Path, server: str):
             raise ValueError("Existing profile samples differ from the voice bundle")
 
         delivery = {key: spec[key] for key in
-                    ("default_emotion", "default_speed", "default_pitch") if key in spec}
+                    ("default_emotion", "default_speed", "default_pitch", "minimax_clone_options") if key in spec}
         if delivery:
             payload = {key: profile.get(key) for key in
                        ("name", "description", "language", "default_engine", "personality")}
@@ -70,6 +76,9 @@ def install(bundle: Path, server: str):
             r.raise_for_status()
             if any(r.json().get(key) != value for key, value in delivery.items()):
                 raise RuntimeError("The server did not preserve the bundle's delivery settings; update Voicebox first")
+        if "effects_chain" in spec:
+            r = client.put(f"/profiles/{pid}/effects", json={"effects_chain": spec["effects_chain"]})
+            r.raise_for_status()
 
         # Reuse the audio already saved during creation of the variant.
         items = get("/library", params={"search": spec["name"], "include_voices": True})["items"]

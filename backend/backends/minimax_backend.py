@@ -17,6 +17,7 @@ mp3/m4a/wav, 10 seconds to 5 minutes, max 20 MB.
 """
 
 import hashlib
+import json
 import logging
 import re
 import uuid
@@ -273,6 +274,7 @@ class MiniMaxTTSBackend:
         audio_path: str,
         reference_text: str,
         use_cache: bool = True,
+        clone_options: Optional[dict] = None,
     ) -> tuple[dict, bool]:
         """Clone the reference audio on MiniMax and return the remote voice_id.
 
@@ -281,13 +283,14 @@ class MiniMaxTTSBackend:
         """
         settings = self._get_settings()
         legacy_hash = get_cache_key(audio_path, reference_text)
-        sample_hash = self._scoped_sample_hash(settings, legacy_hash)
+        options = self._normalize_clone_options(clone_options)
+        sample_hash = self._clone_sample_hash(settings, legacy_hash, options)
         cache_key = ("minimax_" + sample_hash) if use_cache else None
 
         def _build_prompt(voice_id: str) -> dict:
             # ref_audio/ref_text ride along so generate() can re-clone and
             # self-heal if the remote voice_id has expired or been deleted.
-            return {
+            prompt = {
                 "voice_type": "cloned_remote",
                 "engine": "minimax",
                 "minimax_voice_id": voice_id,
@@ -295,6 +298,9 @@ class MiniMaxTTSBackend:
                 "ref_audio": audio_path,
                 "ref_text": reference_text,
             }
+            if options:
+                prompt["clone_options"] = options
+            return prompt
 
         if cache_key:
             cached = get_cached_voice_prompt(cache_key)
@@ -317,8 +323,8 @@ class MiniMaxTTSBackend:
 
         # Migrate older unscoped caches only after checking ownership. A key
         # rotation or region change must never select another account's clone.
-        legacy = self._registry_lookup(legacy_hash)
-        if not legacy and use_cache:
+        legacy = self._registry_lookup(legacy_hash) if not options else None
+        if not legacy and use_cache and not options:
             cached = get_cached_voice_prompt("minimax_" + legacy_hash)
             if isinstance(cached, dict):
                 legacy = cached.get("minimax_voice_id")
@@ -329,13 +335,27 @@ class MiniMaxTTSBackend:
                 cache_voice_prompt(cache_key, voice_prompt)
             return voice_prompt, True
 
-        voice_id = await self._clone_voice(settings, audio_path, reference_text)
+        kwargs = {"clone_options": options} if options else {}
+        voice_id = await self._clone_voice(settings, audio_path, reference_text, **kwargs)
         self._registry_save(voice_id, sample_hash)
 
         voice_prompt = _build_prompt(voice_id)
         if cache_key:
             cache_voice_prompt(cache_key, voice_prompt)
         return voice_prompt, False
+
+    @staticmethod
+    def _normalize_clone_options(options: Optional[dict]) -> dict:
+        from ..models import MiniMaxCloneOptions
+
+        validated = MiniMaxCloneOptions.model_validate(options or {}).model_dump()
+        return {key: value for key, value in validated.items() if value}
+
+    def _clone_sample_hash(self, settings: dict, sample_hash: str, options: Optional[dict] = None) -> str:
+        options = self._normalize_clone_options(options)
+        if options:
+            sample_hash = hashlib.sha256((sample_hash + "\0" + json.dumps(options, sort_keys=True)).encode()).hexdigest()
+        return self._scoped_sample_hash(settings, sample_hash)
 
     @staticmethod
     def _scoped_sample_hash(settings: dict, sample_hash: str) -> str:
@@ -357,7 +377,8 @@ class MiniMaxTTSBackend:
         return {v["voice_id"] for v in payload.get("voice_cloning", []) if v.get("voice_id")}
 
     async def _clone_voice(
-        self, settings: dict, audio_path: str, reference_text: Optional[str] = None
+        self, settings: dict, audio_path: str, reference_text: Optional[str] = None,
+        clone_options: Optional[dict] = None,
     ) -> str:
         import httpx
 
@@ -384,7 +405,8 @@ class MiniMaxTTSBackend:
             if not file_id:
                 raise RuntimeError("MiniMax file upload returned no file_id")
 
-            clone_payload: dict = {"file_id": file_id, "voice_id": voice_id}
+            clone_payload: dict = {"file_id": file_id, "voice_id": voice_id,
+                                   **self._normalize_clone_options(clone_options)}
 
             clone_resp = await client.post(
                 self._url(settings, "/v1/voice_clone"),
@@ -485,7 +507,8 @@ class MiniMaxTTSBackend:
                 "MiniMax clone unavailable — re-cloning from the original reference",
             )
             new_voice_id = await self._clone_voice(
-                settings, voice_prompt["ref_audio"], voice_prompt.get("ref_text")
+                settings, voice_prompt["ref_audio"], voice_prompt.get("ref_text"),
+                **({"clone_options": voice_prompt["clone_options"]} if voice_prompt.get("clone_options") else {}),
             )
             result = await self._generate_with_voice(
                 settings, new_voice_id, text, language, emotion, speed, pitch, is_clone=True,

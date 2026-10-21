@@ -71,6 +71,7 @@ def _profile_to_response(
         default_emotion=getattr(profile, "default_emotion", None),
         default_speed=getattr(profile, "default_speed", None),
         default_pitch=getattr(profile, "default_pitch", None),
+        minimax_clone_options=getattr(profile, "minimax_clone_options", None),
         generation_count=generation_count,
         sample_count=sample_count,
         created_at=profile.created_at,
@@ -227,6 +228,7 @@ async def create_profile(
         default_emotion=data.default_emotion,
         default_speed=data.default_speed,
         default_pitch=data.default_pitch,
+        minimax_clone_options=data.minimax_clone_options.model_dump() if data.minimax_clone_options else None,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )
@@ -454,6 +456,8 @@ async def update_profile(
     for field in ("default_emotion", "default_speed", "default_pitch"):
         if field in data.model_fields_set:
             setattr(profile, field, getattr(data, field))
+    if "minimax_clone_options" in data.model_fields_set:
+        profile.minimax_clone_options = data.minimax_clone_options.model_dump() if data.minimax_clone_options else None
     if data.default_engine is not None:
         profile.default_engine = data.default_engine or None  # empty string → NULL
     if voice_type == "designed":
@@ -649,6 +653,10 @@ async def create_voice_prompt_for_profile(
 
     tts_model = get_tts_backend_for_engine(engine)
 
+    prompt_options = {}
+    if engine == "minimax" and profile.minimax_clone_options:
+        prompt_options["clone_options"] = profile.minimax_clone_options
+
     if len(samples) == 1:
         sample = samples[0]
         sample_audio_path = config.resolve_storage_path(sample.audio_path)
@@ -658,6 +666,7 @@ async def create_voice_prompt_for_profile(
             str(sample_audio_path),
             sample.reference_text,
             use_cache=use_cache,
+            **prompt_options,
         )
         return voice_prompt
 
@@ -691,6 +700,7 @@ async def create_voice_prompt_for_profile(
         str(combined_path),
         combined_text,
         use_cache=use_cache,
+        **prompt_options,
     )
     return voice_prompt
 

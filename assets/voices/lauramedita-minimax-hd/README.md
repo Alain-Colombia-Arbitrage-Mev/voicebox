@@ -1,15 +1,26 @@
-# lauramedita · MiniMax HD
+# lauramedita · MiniMax HD · Referencia B
 
-**Dicción en revisión:** el usuario reportó que la muestra se oye en español pero no se entiende con claridad. La coincidencia de una transcripción automática no certifica una locución inteligible. No debe describirse esta muestra como aprobada por escucha. Las nuevas comparaciones usan texto distinto de la referencia, velocidad 1× y audio sin reverberación añadida.
+Voz de meditación en español. El usuario eligió la comparación **B · Referencia limpiada** y aprobó la nueva prueba con texto distinto de la referencia el 21 de octubre de 2026.
 
-Referencia original en español. La muestra usa `speech-2.8-hd`, `language_boost=Spanish`, velocidad `0.92`, tono `0` y emoción automática. Se creó un clon nuevo desde la grabación original sin añadir un fragmento de audio/texto transcrito automáticamente. No contiene credenciales ni identificadores de clones remotos.
+El paquete conserva por separado:
 
-La referencia dura 27.716 s y la muestra 28.456 s. La transcripción local coincide con el guion en español, salvo una detección residual al final. Esta comprobación no certifica identidad, acento regional ni prosodia idéntica: las pausas e inflexiones pueden variar entre generaciones y textos.
+- `original.mp3`: grabación completa aportada por el usuario.
+- `reference.wav`: fragmento original utilizado para crear B, sin cambio de tono o velocidad. La limpieza la realiza MiniMax al clonar; este archivo conserva la referencia previa al procesamiento del proveedor.
+- `comparison-b.wav`: comparación B elegida por el usuario.
+- `preview.wav`: nueva locución con la misma voz B y el texto indicado en `voice.json`.
+
+Configuración guardada: `speech-2.8-hd`, español, velocidad `1.0`, tono `0`, emoción automática y sin efectos añadidos. La clonación usa `need_noise_reduction=true` y `need_volume_normalization=true`; esas opciones se conservan al guardar, exportar, importar y recuperar un clon caducado. La caché distingue una referencia con limpieza de la misma referencia sin limpieza.
+
+## Instalar
+
+Actualiza primero el servidor Voicebox para que admita `minimax_clone_options` y ejecuta desde la raíz del repositorio:
 
 ```sh
 .venv/bin/python scripts/install_library_voice.py --bundle assets/voices/lauramedita-minimax-hd --server http://127.0.0.1:17494
 ```
 
-El instalador agrega la referencia, conserva velocidad/tono/emoción y registra una muestra ya generada con su idioma y motor, sin llamar a MiniMax. Usa una biblioteca sin otro perfil del mismo nombre o configura el perfil existente para MiniMax. El original permanece separado de la muestra sintetizada.
+Para la aplicación de escritorio, utiliza su servidor `http://127.0.0.1:17493`. El instalador registra la referencia, la configuración y la muestra ya generada sin llamar a MiniMax; repetirlo conserva el perfil y evita duplicar la misma muestra. Las nuevas generaciones requieren la clave y el saldo de MiniMax de cada instalación. El clon remoto se crea en esa cuenta; no se incluyen credenciales ni identificadores remotos.
 
-Documentación del proveedor: [clonación](https://platform.minimax.io/docs/api-reference/voice-cloning-clone) y [síntesis](https://platform.minimax.io/docs/api-reference/speech-t2a-http).
+La aprobación corresponde a estas muestras. El ritmo, las pausas y las inflexiones de textos nuevos pueden variar y requieren escucha. La coincidencia de una transcripción automática comprueba el contenido, no una prosodia idéntica.
+
+Documentación del proveedor: [clonación y limpieza de referencia](https://platform.minimax.io/docs/api-reference/voice-cloning-clone).

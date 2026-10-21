@@ -91,6 +91,7 @@ def export_profile_to_zip(profile_id: str, db: Session) -> bytes:
                 "default_emotion": profile.default_emotion,
                 "default_speed": profile.default_speed,
                 "default_pitch": profile.default_pitch,
+                "minimax_clone_options": profile.minimax_clone_options,
                 "personality": profile.personality,
                 "effects_chain": json.loads(profile.effects_chain) if profile.effects_chain else [],
             },
@@ -180,7 +181,7 @@ async def import_profile_from_zip(file_bytes: bytes, db: Session) -> VoiceProfil
                 description=profile_data.get("description"),
                 language=profile_data.get("language", "en"),
                 **{field: profile_data[field] for field in
-                   ("default_engine", "default_emotion", "default_speed", "default_pitch", "personality")
+                   ("default_engine", "default_emotion", "default_speed", "default_pitch", "personality", "minimax_clone_options")
                    if field in profile_data},
             )
             effects = [EffectConfig(**effect).model_dump() for effect in profile_data.get("effects_chain", [])]

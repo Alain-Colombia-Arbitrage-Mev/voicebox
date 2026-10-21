@@ -3,10 +3,16 @@ import type { LanguageCode } from '@/lib/constants/languages';
 
 export type VoiceType = 'cloned' | 'preset' | 'designed' | 'import';
 
+export interface MiniMaxCloneOptions {
+  need_noise_reduction?: boolean;
+  need_volume_normalization?: boolean;
+}
+
 export interface VoiceProfileCreate {
   default_emotion?: EmotionValue | null;
   default_speed?: number | null;
   default_pitch?: number | null;
+  minimax_clone_options?: MiniMaxCloneOptions | null;
   name: string;
   description?: string;
   language: LanguageCode;
@@ -36,6 +42,7 @@ export interface VoiceProfileResponse {
   default_emotion?: string | null;
   default_speed?: number | null;
   default_pitch?: number | null;
+  minimax_clone_options?: MiniMaxCloneOptions | null;
   generation_count: number;
   sample_count: number;
   created_at: string;

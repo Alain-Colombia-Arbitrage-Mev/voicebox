@@ -168,6 +168,8 @@ def _migrate_profiles(engine, inspector, tables: set[str]) -> None:
         _add_column(engine, "profiles", "default_speed FLOAT", "default_speed")
     if "default_pitch" not in columns:
         _add_column(engine, "profiles", "default_pitch INTEGER", "default_pitch")
+    if "minimax_clone_options" not in columns:
+        _add_column(engine, "profiles", "minimax_clone_options JSON", "minimax_clone_options")
 
 
 def _migrate_generations(engine, inspector, tables: set[str]) -> None:

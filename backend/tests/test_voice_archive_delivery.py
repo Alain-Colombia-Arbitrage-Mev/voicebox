@@ -21,7 +21,7 @@ async def test_voice_and_recording_archive_preserve_minimax_delivery(tmp_path, m
     reference = tmp_path / 'reference.wav'
     sf.write(reference, 0.2 * np.sin(np.arange(24000 * 12) * 0.04), 24000)
     with sessionmaker(bind=sql)() as db:
-        original = await profiles.create_profile(models.VoiceProfileCreate(name='Laura', language='es', default_engine='minimax', default_speed=0.91, default_pitch=0, default_emotion=None, personality='Narradora serena.'), db)
+        original = await profiles.create_profile(models.VoiceProfileCreate(name='Laura', language='es', default_engine='minimax', default_speed=0.91, default_pitch=0, default_emotion=None, personality='Narradora serena.', minimax_clone_options={'need_noise_reduction': True, 'need_volume_normalization': True}), db)
         await profiles.add_profile_sample(original.id, str(reference), 'Universo, hoy me presento ante ti.', db)
         stored = db.query(database.VoiceProfile).filter_by(id=original.id).one()
         stored.effects_chain = json.dumps([{'type': 'reverb', 'enabled': True, 'params': {'wet_level': 0.1}}])
@@ -34,6 +34,7 @@ async def test_voice_and_recording_archive_preserve_minimax_delivery(tmp_path, m
         assert restored.name == 'Laura (1)'
         assert (restored.default_engine, restored.default_speed, restored.default_pitch, restored.default_emotion) == ('minimax', 0.91, 0, None)
         assert restored.language == 'es' and restored.personality == 'Narradora serena.'
+        assert restored.minimax_clone_options.model_dump() == {'need_noise_reduction': True, 'need_volume_normalization': True}
         assert restored.effects_chain[0].type == 'reverb'
         first = await profiles.get_profile_samples(original.id, db)
         second = await profiles.get_profile_samples(restored.id, db)

@@ -1,21 +1,31 @@
 {
   "version": 1,
-  "listening_review_status": "needs_user_review",
+  "listening_review_status": "approved_by_user",
   "name": "lauramedita",
-  "description": "Referencia española original; MiniMax HD con velocidad calibrada y sin desplazamiento de tono.",
+  "description": "Opción B elegida por el usuario: referencia limpiada por MiniMax, con normalización de volumen. Español, velocidad 1×, tono 0, sin efectos añadidos. Original y comparaciones conservados.",
   "language": "es",
   "voice_type": "cloned",
   "default_engine": "minimax",
-  "default_speed": 0.92,
+  "default_speed": 1.0,
   "default_pitch": 0,
   "default_emotion": null,
   "reference_file": "reference.wav",
   "preview_file": "preview.wav",
   "reference_text": "Universo, hoy me presento ante ti con el corazón abierto. Ayúdame a reconocer las oportunidades que llegan a mi vida y a usar mis recursos con sabiduría y conciencia. Pido claridad para ver mi camino. Pido fuerza para sostener mis sueños. Pido paz para confiar en tus tiempos. Agradezco la abundancia que ya fluye hacia mí, la salud que habita mi cuerpo y el amor que me rodea.",
-  "preview_text": "Universo, hoy me presento ante ti con el corazón abierto. Ayúdame a reconocer las oportunidades que llegan a mi vida y a usar mis recursos con sabiduría y conciencia. Pido claridad para ver mi camino. Pido fuerza para sostener mis sueños. Pido paz para confiar en tus tiempos. Agradezco la abundancia que ya fluye hacia mí, la salud que habita mi cuerpo y el amor que me rodea.",
+  "preview_text": "Hoy me doy permiso de avanzar con calma. ¿Qué pequeño paso puedo dar ahora? Respiro sin prisa, reconozco mis capacidades y elijo una acción que esté a mi alcance.",
   "account_specific_ids_in_bundle": false,
   "sha256": {
-    "reference.wav": "9c8d9d1b1083a44f72ef8723053b777ec4ccd0aff3efcebbd0520c3a967f2419",
-    "preview.wav": "38763130996718cf4988a33af9f4814549031bb9d4c68675f7fb5518ac21fe22"
-  }
+    "reference.wav": "511380a3c583f47a62184629e1ae51b54dce15d91b56a2c3319577c423c3c8d0",
+    "preview.wav": "50a1d3f514c7861406203f66338c94d2781edcc305835ee52be95fe64fca6ecd",
+    "comparison-b.wav": "f579f936793af7d7aec4d5cc98a27e3fd7cd783fa43b94ee2bb96514a6d09935",
+    "original.mp3": "436b02ce7b6c146ea1aae736d487de94241ad7af5bd982407dd14293280afc27"
+  },
+  "listening_review_date": "2026-10-21",
+  "minimax_clone_options": {
+    "need_noise_reduction": true,
+    "need_volume_normalization": true
+  },
+  "effects_chain": [],
+  "original_file": "original.mp3",
+  "approved_comparison_file": "comparison-b.wav"
 }

@@ -161,3 +161,43 @@ async def test_keepalive_preserves_other_account_registry_rows(tmp_path, monkeyp
     with factory() as db:
         assert db.query(database.MiniMaxVoice).count() == 2
     sql.dispose()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_recipe_does_not_reuse_an_unprocessed_clone(backend, tmp_path, monkeypatch):
+    instance, settings, registry, cache = backend
+    sample = tmp_path / 'sample.wav'
+    sample.write_bytes(b'reference')
+    clone = AsyncMock(side_effect=['raw-clone', 'clean-clone'])
+    monkeypatch.setattr(instance, '_clone_voice', clone)
+    monkeypatch.setattr(instance, '_owns_voice', AsyncMock(return_value=True))
+    raw, _ = await instance.create_voice_prompt(str(sample), 'texto')
+    options = {'need_noise_reduction': True, 'need_volume_normalization': True}
+    clean, reused = await instance.create_voice_prompt(str(sample), 'texto', clone_options=options)
+    assert not reused and raw['sample_hash'] != clean['sample_hash']
+    assert clean['minimax_voice_id'] == 'clean-clone' and clean['clone_options'] == options
+    assert clone.call_args.kwargs['clone_options'] == options
+    # Clearing prompt files must retain the recipe through the durable registry.
+    cache.clear()
+    restored, reused = await instance.create_voice_prompt(str(sample), 'texto', clone_options=options)
+    assert reused and restored == clean and clone.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_clone_cleanup_reaches_provider_and_survives_recovery(backend, tmp_path, monkeypatch):
+    import json
+    instance, settings, *_ = backend
+    sample = tmp_path / 'reference.wav';sample.write_bytes(b'original')
+    options = {'need_noise_reduction': True, 'need_volume_normalization': True}
+    def respond(request):
+        if request.url.path == '/v1/files/upload':
+            return httpx.Response(200, json={'file': {'file_id': 7}})
+        assert json.loads(request.content) == {'file_id': 7, 'voice_id': json.loads(request.content)['voice_id'], **options}
+        return httpx.Response(200, json={'base_resp': {'status_code': 0}})
+    client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: client(transport=httpx.MockTransport(respond)))
+    await instance._clone_voice(settings, str(sample), clone_options=options)
+    monkeypatch.setattr(instance, '_generate_with_voice', AsyncMock(side_effect=[module.MiniMaxAPIError(2054, 'missing'), (np.zeros(32), 32000)]))
+    clone = AsyncMock(return_value='recovered-clean-clone');monkeypatch.setattr(instance, '_clone_voice', clone)
+    await instance.generate('Hola.', {'minimax_voice_id':'expired', 'ref_audio':str(sample), 'clone_options':options}, 'es')
+    assert clone.call_args.kwargs['clone_options'] == options

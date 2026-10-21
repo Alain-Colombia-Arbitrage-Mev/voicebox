@@ -464,6 +464,9 @@ Accent and naturalness still require listening to the chosen voice.
 
 The [reusable warm Spanish voice bundle](assets/voices/deseos-timbre-calido-variante-2/README.md)
 includes its reference, preview and idempotent library installer.
+The [lauramedita B bundle](assets/voices/lauramedita-minimax-hd/README.md) includes the
+user-approved cleaned-reference comparison, a new narration, the original recording,
+and the MiniMax cleanup settings needed to recreate the voice in another installation.
 See the [custom 0.6 upgrade notes](docs/mantralia/actualizacion-0.6.md) for data
 preservation and validation details.
 

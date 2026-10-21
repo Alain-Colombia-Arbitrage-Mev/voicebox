@@ -50,6 +50,7 @@ class VoiceProfile(Base):
     default_emotion = Column(String, nullable=True)
     default_speed = Column(Float, nullable=True)
     default_pitch = Column(Integer, nullable=True)
+    minimax_clone_options = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
