@@ -12,6 +12,7 @@ import { useModelDownloadToast } from '@/lib/hooks/useModelDownloadToast';
 import { useGenerationSettings } from '@/lib/hooks/useSettings';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useUIStore } from '@/stores/uiStore';
+import { generationProsody } from '@/lib/utils/generationProsody';
 
 const generationSchema = z.object({
   text: z.string().min(1, '').max(50000),
@@ -181,9 +182,6 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
       // Base Qwen3-TTS accepts the kwarg but ignores it.
       const supportsInstruct = engineSupportsInstruct(engine);
       // Prosody controls only apply to engines that honor them.
-      const supportsEmotion = engine === 'minimax' || engine === 'fish';
-      const supportsSpeed = engine === 'minimax' || engine === 'fish' || engine === 'kokoro';
-      const supportsPitch = engine === 'minimax';
       const effectsChain = options.getEffectsChain?.();
       // This now returns immediately with status="generating"
       const result = await generation.mutateAsync({
@@ -194,9 +192,7 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         model_size: hasModelSizes ? data.modelSize : undefined,
         engine,
         instruct: supportsInstruct ? data.instruct || undefined : undefined,
-        emotion: supportsEmotion ? data.emotion : undefined,
-        speed: supportsSpeed && data.speed !== 1.0 ? data.speed : undefined,
-        pitch: supportsPitch && data.pitch !== 0 ? data.pitch : undefined,
+        ...generationProsody(engine, data),
         personality: data.personality || undefined,
         max_chunk_chars: maxChunkChars,
         crossfade_ms: crossfadeMs,

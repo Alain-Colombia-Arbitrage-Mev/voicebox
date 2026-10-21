@@ -16,6 +16,7 @@ Reference audio requirements (enforced server-side by MiniMax):
 mp3/m4a/wav, 10 seconds to 5 minutes, max 20 MB.
 """
 
+import hashlib
 import logging
 import re
 import uuid
@@ -110,7 +111,7 @@ _PAUSE_MARKER_RE = re.compile(r"\s*<#(\d+(?:\.\d+)?)#>\s*")
 
 # MiniMax status codes that mean "this voice_id no longer exists remotely"
 # (expired unused clone, account cleanup, region switch). Triggers re-clone.
-_VOICE_GONE_CODES = {2054}
+_VOICE_GONE_CODES = {2042, 2054}
 
 
 class MiniMaxAPIError(RuntimeError):
@@ -205,9 +206,12 @@ class MiniMaxTTSBackend:
 
         db = next(get_db())
         try:
-            if not db.query(MiniMaxVoice).filter_by(voice_id=voice_id).first():
+            row = db.query(MiniMaxVoice).filter_by(voice_id=voice_id).first()
+            if row:
+                row.sample_hash = sample_hash
+            else:
                 db.add(MiniMaxVoice(voice_id=voice_id, sample_hash=sample_hash))
-                db.commit()
+            db.commit()
         finally:
             db.close()
 
@@ -275,7 +279,9 @@ class MiniMaxTTSBackend:
         The clone happens once per (audio, text) pair; afterwards the
         voice_id is cached locally like any other voice prompt.
         """
-        sample_hash = get_cache_key(audio_path, reference_text)
+        settings = self._get_settings()
+        legacy_hash = get_cache_key(audio_path, reference_text)
+        sample_hash = self._scoped_sample_hash(settings, legacy_hash)
         cache_key = ("minimax_" + sample_hash) if use_cache else None
 
         def _build_prompt(voice_id: str) -> dict:
@@ -309,7 +315,20 @@ class MiniMaxTTSBackend:
                 cache_voice_prompt(cache_key, voice_prompt)
             return voice_prompt, True
 
-        settings = self._get_settings()
+        # Migrate older unscoped caches only after checking ownership. A key
+        # rotation or region change must never select another account's clone.
+        legacy = self._registry_lookup(legacy_hash)
+        if not legacy and use_cache:
+            cached = get_cached_voice_prompt("minimax_" + legacy_hash)
+            if isinstance(cached, dict):
+                legacy = cached.get("minimax_voice_id")
+        if legacy and await self._owns_voice(settings, legacy):
+            self._registry_save(legacy, sample_hash)
+            voice_prompt = _build_prompt(legacy)
+            if cache_key:
+                cache_voice_prompt(cache_key, voice_prompt)
+            return voice_prompt, True
+
         voice_id = await self._clone_voice(settings, audio_path, reference_text)
         self._registry_save(voice_id, sample_hash)
 
@@ -317,6 +336,25 @@ class MiniMaxTTSBackend:
         if cache_key:
             cache_voice_prompt(cache_key, voice_prompt)
         return voice_prompt, False
+
+    @staticmethod
+    def _scoped_sample_hash(settings: dict, sample_hash: str) -> str:
+        scope = "\0".join((settings["host"].rstrip("/"), settings.get("group_id") or "", settings["api_key"], sample_hash))
+        return hashlib.sha256(scope.encode()).hexdigest()
+
+    async def _owns_voice(self, settings: dict, voice_id: str) -> bool:
+        return voice_id in await self._owned_voice_ids(settings)
+
+    async def _owned_voice_ids(self, settings: dict) -> set[str]:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(self._url(settings, "/v1/get_voice"),
+                                         headers=self._headers(settings), json={"voice_type": "all"})
+        response.raise_for_status()
+        payload = response.json()
+        self._check_base_resp(payload, "voice ownership check")
+        return {v["voice_id"] for v in payload.get("voice_cloning", []) if v.get("voice_id")}
 
     async def _clone_voice(
         self, settings: dict, audio_path: str, reference_text: Optional[str] = None
@@ -327,12 +365,10 @@ class MiniMaxTTSBackend:
         # starts with a letter, 8-256 chars, [A-Za-z0-9_-], no trailing -/_.
         voice_id = "vb" + _VOICE_ID_RE.sub("", uuid.uuid4().hex)[:22]
 
-        # Delivery-mimicry prompt: a <8s slice of the reference plus its
-        # transcript makes the clone reproduce that exact interpretation —
-        # pacing, breaths, intensity — not just the timbre. Best-effort:
-        # cloning proceeds without it if slicing/transcription isn't possible.
-        prompt_slice = await self._build_clone_prompt_slice(audio_path)
-
+        # Clone from the original recording only. An automatically transcribed
+        # prompt cut mid-utterance can condition unrelated/repeated words into
+        # the voice. MiniMax's optional clone_prompt requires a manually
+        # verified exact audio/text pair; profile transcripts are not alignment.
         async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
             with open(audio_path, "rb") as f:
                 upload_resp = await client.post(
@@ -350,29 +386,6 @@ class MiniMaxTTSBackend:
 
             clone_payload: dict = {"file_id": file_id, "voice_id": voice_id}
 
-            if prompt_slice is not None:
-                slice_path, prompt_text = prompt_slice
-                try:
-                    with open(slice_path, "rb") as f:
-                        prompt_resp = await client.post(
-                            self._url(settings, "/v1/files/upload"),
-                            headers=self._headers(settings),
-                            data={"purpose": "prompt_audio"},
-                            files={"file": ("prompt.wav", f, "audio/wav")},
-                        )
-                    prompt_resp.raise_for_status()
-                    prompt_json = prompt_resp.json()
-                    self._check_base_resp(prompt_json, "prompt upload")
-                    prompt_file_id = (prompt_json.get("file") or {}).get("file_id")
-                    if prompt_file_id:
-                        clone_payload["clone_prompt"] = {
-                            "prompt_audio": prompt_file_id,
-                            "prompt_text": prompt_text,
-                        }
-                        logger.info("MiniMax clone using delivery prompt slice")
-                except Exception:
-                    logger.warning("Clone prompt upload failed — cloning without it", exc_info=True)
-
             clone_resp = await client.post(
                 self._url(settings, "/v1/voice_clone"),
                 headers={**self._headers(settings), "Content-Type": "application/json"},
@@ -382,58 +395,8 @@ class MiniMaxTTSBackend:
             clone_json = clone_resp.json()
             self._check_base_resp(clone_json, "voice clone")
 
-        logger.info("MiniMax voice cloned: %s", voice_id)
+        logger.info("MiniMax reference voice cloned successfully")
         return voice_id
-
-    @staticmethod
-    async def _build_clone_prompt_slice(audio_path: str) -> Optional[tuple[str, str]]:
-        """Cut a ≤7.5s voiced slice of the reference and transcribe it locally.
-
-        Returns (slice_path, transcript) or None. Uses the local Whisper
-        model only if it's already downloaded — never triggers a download
-        from inside a cloning call.
-        """
-        import asyncio
-
-        try:
-            from ..services.transcribe import get_whisper_model
-
-            whisper = get_whisper_model()
-            checker = getattr(whisper, "_is_model_cached", None)
-            whisper_size = getattr(whisper, "model_size", None) or "base"
-            if checker is not None and not checker(whisper_size):
-                logger.info("Whisper not downloaded — skipping clone prompt slice")
-                return None
-
-            def _slice() -> Optional[str]:
-                import librosa
-                import soundfile as sf
-
-                from .. import config
-
-                y, sr = librosa.load(audio_path, sr=24000, mono=True)
-                y, _ = librosa.effects.trim(y, top_db=30)
-                max_n = int(7.5 * sr)
-                if len(y) < sr * 2:
-                    return None  # too short to be a useful delivery example
-                seg = y[:max_n]
-                out = config.get_cache_dir() / f"clone_prompt_{uuid.uuid4().hex[:8]}.wav"
-                out.parent.mkdir(parents=True, exist_ok=True)
-                sf.write(str(out), seg, sr)
-                return str(out)
-
-            slice_path = await asyncio.to_thread(_slice)
-            if slice_path is None:
-                return None
-
-            transcript = await whisper.transcribe(slice_path)
-            transcript = (transcript or "").strip()
-            if not transcript:
-                return None
-            return slice_path, transcript
-        except Exception:
-            logger.warning("Could not build clone prompt slice", exc_info=True)
-            return None
 
     async def combine_voice_prompts(
         self,
@@ -519,22 +482,22 @@ class MiniMaxTTSBackend:
             if not can_reclone:
                 raise
             logger.warning(
-                "MiniMax voice %s no longer exists remotely — re-cloning from reference",
-                voice_id,
+                "MiniMax clone unavailable — re-cloning from the original reference",
             )
-            self._registry_delete(voice_id)
             new_voice_id = await self._clone_voice(
                 settings, voice_prompt["ref_audio"], voice_prompt.get("ref_text")
             )
+            result = await self._generate_with_voice(
+                settings, new_voice_id, text, language, emotion, speed, pitch, is_clone=True,
+            )
             sample_hash = voice_prompt.get("sample_hash")
+            voice_prompt["minimax_voice_id"] = new_voice_id
             if sample_hash:
                 self._registry_save(new_voice_id, sample_hash)
-                refreshed = dict(voice_prompt, minimax_voice_id=new_voice_id)
-                cache_voice_prompt("minimax_" + sample_hash, refreshed)
-            return await self._generate_with_voice(
-                settings, new_voice_id, text, language, emotion, speed, pitch,
-                is_clone=True,
-            )
+                cache_voice_prompt("minimax_" + sample_hash, voice_prompt)
+            self._registry_delete(voice_id)
+            self._registry_touch(new_voice_id)
+            return result
 
     async def _generate_with_voice(
         self,
@@ -641,6 +604,15 @@ async def refresh_stale_voices() -> None:
     if not voice_ids:
         return
 
+    # Registries can contain clones from previous accounts or regions. Leave
+    # those rows intact; only refresh voices owned by the active account.
+    try:
+        owned = await backend._owned_voice_ids(settings)
+    except Exception:
+        logger.warning("MiniMax keepalive skipped: voice ownership could not be checked")
+        return
+    voice_ids = [voice_id for voice_id in voice_ids if voice_id in owned]
+
     logger.info("MiniMax keepalive: touching %d idle cloned voice(s)", len(voice_ids))
     for voice_id in voice_ids:
         try:
@@ -651,9 +623,9 @@ async def refresh_stale_voices() -> None:
             if e.code in _VOICE_GONE_CODES:
                 # Already gone remotely — drop the row; the self-heal path
                 # re-clones from the reference on next real use.
-                logger.warning("MiniMax voice %s already expired — unregistering", voice_id)
+                logger.warning("MiniMax owned clone expired — unregistering")
                 backend._registry_delete(voice_id)
             else:
-                logger.warning("MiniMax keepalive failed for %s: %s", voice_id, e)
+                logger.warning("MiniMax keepalive failed (status %s)", e.code)
         except Exception as e:
-            logger.warning("MiniMax keepalive failed for %s: %s", voice_id, e)
+            logger.warning("MiniMax keepalive failed: %s", type(e).__name__)

@@ -77,7 +77,7 @@ async def generate_speech(
     model_size = (data.model_size or "1.7B") if engine_has_model_sizes(engine) else None
 
     # Captured profile prosody fills any control the request leaves unset
-    emotion = data.emotion or getattr(profile, "default_emotion", None)
+    emotion = data.emotion if "emotion" in data.model_fields_set else getattr(profile, "default_emotion", None)
     speed = data.speed if data.speed is not None else getattr(profile, "default_speed", None)
     pitch = data.pitch if data.pitch is not None else getattr(profile, "default_pitch", None)
 
@@ -388,7 +388,7 @@ async def stream_speech(
             language=data.language,
             seed=data.seed,
             instruct=data.instruct,
-            emotion=data.emotion or getattr(profile, "default_emotion", None),
+            emotion=data.emotion if "emotion" in data.model_fields_set else getattr(profile, "default_emotion", None),
             speed=data.speed if data.speed is not None else getattr(profile, "default_speed", None),
             pitch=data.pitch if data.pitch is not None else getattr(profile, "default_pitch", None),
             max_chunk_chars=data.max_chunk_chars,

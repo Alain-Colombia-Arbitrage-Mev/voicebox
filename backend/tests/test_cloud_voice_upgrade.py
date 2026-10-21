@@ -12,7 +12,8 @@ from backend.services import generation
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("engine", ["minimax", "fish"])
-async def test_saved_cloud_voice_generates_with_its_prosody_and_pauses(tmp_path, monkeypatch, engine):
+@pytest.mark.parametrize("override", [False, True])
+async def test_saved_cloud_voice_generates_with_its_prosody_and_pauses(tmp_path, monkeypatch, engine, override):
     monkeypatch.setattr(config, "_data_dir", tmp_path)
     sql = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
     database.Base.metadata.create_all(sql)
@@ -57,7 +58,8 @@ async def test_saved_cloud_voice_generates_with_its_prosody_and_pauses(tmp_path,
                 reference_text="Hay deseos que llevas tiempo sintiendo."))
             db.commit()
             request = models.GenerationRequest(profile_id="voice", text="Pregunta. <#0.25#> Responde.",
-                                               language="es", normalize=False)
+                                               language="es", normalize=False,
+                                               **({"speed": 1.0, "pitch": 0, "emotion": None} if override else {}))
             result = await generations.generate_speech(request, db)
             assert request.engine is None
         assert len(queued) == 1
@@ -66,13 +68,13 @@ async def test_saved_cloud_voice_generates_with_its_prosody_and_pauses(tmp_path,
             saved = db.query(database.Generation).filter_by(id=result.id).one()
             assert saved.status == "completed", saved.error
             assert saved.engine == engine
-            assert (saved.emotion, saved.speed, saved.pitch) == ("calm", 0.95, 0)
+            assert (saved.emotion, saved.speed, saved.pitch) == ((None, 1.0, 0) if override else ("calm", 0.95, 0))
             audio, rate = sf.read(config.resolve_storage_path(saved.audio_path))
             assert rate == 1000
             assert len(audio) == 450
             np.testing.assert_array_equal(audio[100:350], np.zeros(250))
         assert [text for text, _ in calls] == ["Pregunta.", "Responde."]
-        assert all(kwargs["language"] == "es" and kwargs["speed"] == 0.95 and
-                   kwargs["emotion"] == "calm" and kwargs["pitch"] == 0 for _, kwargs in calls)
+        assert all(kwargs["language"] == "es" and kwargs["speed"] == (1.0 if override else 0.95) and
+                   kwargs.get("emotion") == (None if override else "calm") and kwargs["pitch"] == 0 for _, kwargs in calls)
     finally:
         sql.dispose()

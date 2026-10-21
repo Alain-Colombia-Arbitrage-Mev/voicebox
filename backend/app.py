@@ -166,6 +166,7 @@ def create_app() -> FastAPI:
 
 def _configure_cors(application: FastAPI) -> None:
     """Set up CORS middleware with local-first defaults."""
+    import inspect
     default_origins = [
         "http://localhost:5173",  # Vite dev server
         "http://127.0.0.1:5173",
@@ -178,12 +179,20 @@ def _configure_cors(application: FastAPI) -> None:
     env_origins = os.environ.get("VOICEBOX_CORS_ORIGINS", "")
     all_origins = default_origins + [o.strip() for o in env_origins.split(",") if o.strip()]
 
+    # New Starlette versions reject browser preflights for localhost unless
+    # private-network access is enabled. The existing origin allowlist still
+    # applies; compatibility with older bundled Starlette is retained.
+    network_options = {}
+    if "allow_private_network" in inspect.signature(CORSMiddleware).parameters:
+        network_options["allow_private_network"] = True
+
     application.add_middleware(
         CORSMiddleware,
         allow_origins=all_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        **network_options,
     )
 
 

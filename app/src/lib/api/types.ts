@@ -4,6 +4,9 @@ import type { LanguageCode } from '@/lib/constants/languages';
 export type VoiceType = 'cloned' | 'preset' | 'designed' | 'import';
 
 export interface VoiceProfileCreate {
+  default_emotion?: EmotionValue | null;
+  default_speed?: number | null;
+  default_pitch?: number | null;
   name: string;
   description?: string;
   language: LanguageCode;
@@ -102,8 +105,8 @@ export interface GenerationRequest {
     | 'fish'
     | 'omnivoice';
   instruct?: string;
-  /** Emotional tone for engines that support it (MiniMax). Omit for auto. */
-  emotion?: EmotionValue;
+  /** Omit to inherit the profile; null selects automatic delivery. */
+  emotion?: EmotionValue | null;
   /** Speech rate multiplier [0.5, 2.0] for engines that support it. */
   speed?: number;
   /** Pitch shift in semitones [-12, 12] for engines that support it. */

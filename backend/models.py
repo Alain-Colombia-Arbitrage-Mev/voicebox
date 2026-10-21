@@ -26,6 +26,9 @@ class VoiceProfileCreate(BaseModel):
     design_prompt: Optional[str] = Field(None, max_length=2000)
     default_engine: Optional[str] = Field(None, max_length=50)
     personality: Optional[str] = Field(None, max_length=2000)
+    default_emotion: Optional[str] = Field(None, pattern="^(happy|sad|angry|fearful|disgusted|surprised|calm|fluent|whisper)$")
+    default_speed: Optional[float] = Field(None, ge=0.5, le=2.0)
+    default_pitch: Optional[int] = Field(None, ge=-12, le=12)
 
 
 class VoiceProfileResponse(BaseModel):
@@ -120,7 +123,7 @@ class GenerationRequest(BaseModel):
     emotion: Optional[str] = Field(
         None,
         pattern="^(happy|sad|angry|fearful|disgusted|surprised|calm|fluent|whisper)$",
-        description="Emotional tone for engines that support it (MiniMax). None = auto.",
+        description="Emotional tone for supported engines. Omit to inherit the profile; null = auto.",
     )
     speed: Optional[float] = Field(
         None, ge=0.5, le=2.0, description="Speech rate multiplier for engines that support it"

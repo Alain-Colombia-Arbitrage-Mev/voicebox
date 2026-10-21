@@ -25,7 +25,6 @@ export function LocutionTemplate({
             form.setValue('text', locutionText(engine), { shouldDirty: true });
             form.setValue('language', 'es');
             form.setValue('speed', locutionSpeed);
-            form.setValue('emotion', engine === 'minimax' ? 'fluent' : undefined);
             form.setValue('pitch', 0);
             form.setValue('personality', false);
             form.setValue('instruct', engine === 'fish' ? locutionDirection : '');

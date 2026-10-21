@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import io
 import json
+import zipfile
 from pathlib import Path
 
 import httpx
@@ -60,9 +61,20 @@ def install(bundle: Path, server: str):
         if len(samples) != 1 or samples[0]["reference_text"] != spec["reference_text"]:
             raise ValueError("Existing profile samples differ from the voice bundle")
 
+        delivery = {key: spec[key] for key in
+                    ("default_emotion", "default_speed", "default_pitch") if key in spec}
+        if delivery:
+            payload = {key: profile.get(key) for key in
+                       ("name", "description", "language", "default_engine", "personality")}
+            r = client.put(f"/profiles/{pid}", json={**payload, **delivery})
+            r.raise_for_status()
+            if any(r.json().get(key) != value for key, value in delivery.items()):
+                raise RuntimeError("The server did not preserve the bundle's delivery settings; update Voicebox first")
+
         # Reuse the audio already saved during creation of the variant.
         items = get("/library", params={"search": spec["name"], "include_voices": True})["items"]
-        matching = [item for item in items if item["title"] == spec["name"]]
+        matching = [item for item in items if item["title"] == spec["name"] or
+                    (item.get("voice") == spec["name"] and item["title"] == spec.get("preview_text", "")[:200])]
         item = None
         for candidate in matching:
             r = client.get(candidate["audio_url"])
@@ -71,11 +83,21 @@ def install(bundle: Path, server: str):
                 item = candidate
                 break
         if item is None:
-            r = client.post("/generate/import", files={"file": (
-                spec["name"] + ".wav", files["preview_file"], "audio/wav")})
+            preview, rate = sf.read(io.BytesIO(files["preview_file"]))
+            manifest = {"version": "1.0", "profile": {"name": spec["name"]}, "generation": {
+                "text": spec.get("preview_text", spec["name"]), "language": spec["language"],
+                "duration": len(preview) / rate, "engine": spec["default_engine"],
+                "emotion": spec.get("default_emotion"), "speed": spec.get("default_speed"),
+                "pitch": spec.get("default_pitch"),
+            }}
+            archive = io.BytesIO()
+            with zipfile.ZipFile(archive, "w") as zipped:
+                zipped.writestr("manifest.json", json.dumps(manifest))
+                zipped.writestr("audio/preview.wav", files["preview_file"])
+            r = client.post("/history/import", files={"file": ("preview.zip", archive.getvalue(), "application/zip")})
             r.raise_for_status()
             gid = r.json()["id"]
-            item = next(i for i in get("/library", params={"search": spec["name"]})["items"]
+            item = next(i for i in get("/library", params={"search": spec["name"], "include_voices": True})["items"]
                         if i["id"] == gid)
         r = client.get(item["audio_url"])
         r.raise_for_status()

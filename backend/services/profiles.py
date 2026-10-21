@@ -224,6 +224,9 @@ async def create_profile(
         design_prompt=data.design_prompt,
         default_engine=default_engine,
         personality=data.personality,
+        default_emotion=data.default_emotion,
+        default_speed=data.default_speed,
+        default_pitch=data.default_pitch,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )
@@ -446,6 +449,11 @@ async def update_profile(
     profile.description = data.description
     profile.language = data.language
     profile.personality = data.personality
+    # Omitted delivery fields preserve saved settings; explicit null clears an
+    # override. Neutral speed/pitch values are valid saved overrides too.
+    for field in ("default_emotion", "default_speed", "default_pitch"):
+        if field in data.model_fields_set:
+            setattr(profile, field, getattr(data, field))
     if data.default_engine is not None:
         profile.default_engine = data.default_engine or None  # empty string → NULL
     if voice_type == "designed":

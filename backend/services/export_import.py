@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..models import VoiceProfileResponse
 from ..database import VoiceProfile as DBVoiceProfile, ProfileSample as DBProfileSample, Generation as DBGeneration, GenerationVersion as DBGenerationVersion
 from .profiles import create_profile, add_profile_sample
-from ..models import VoiceProfileCreate
+from ..models import VoiceProfileCreate, EffectConfig, GenerationRequest
 from .. import config
 
 
@@ -87,6 +87,12 @@ def export_profile_to_zip(profile_id: str, db: Session) -> bytes:
                 "name": profile.name,
                 "description": profile.description,
                 "language": profile.language,
+                "default_engine": profile.default_engine,
+                "default_emotion": profile.default_emotion,
+                "default_speed": profile.default_speed,
+                "default_pitch": profile.default_pitch,
+                "personality": profile.personality,
+                "effects_chain": json.loads(profile.effects_chain) if profile.effects_chain else [],
             },
             "has_avatar": has_avatar,
         }
@@ -173,7 +179,11 @@ async def import_profile_from_zip(file_bytes: bytes, db: Session) -> VoiceProfil
                 name=unique_name,
                 description=profile_data.get("description"),
                 language=profile_data.get("language", "en"),
+                **{field: profile_data[field] for field in
+                   ("default_engine", "default_emotion", "default_speed", "default_pitch", "personality")
+                   if field in profile_data},
             )
+            effects = [EffectConfig(**effect).model_dump() for effect in profile_data.get("effects_chain", [])]
             
             profile = await create_profile(profile_create, db)
 
@@ -230,6 +240,12 @@ async def import_profile_from_zip(file_bytes: bytes, db: Session) -> VoiceProfil
                     # Clean up temp file
                     Path(tmp_path).unlink(missing_ok=True)
             
+            if "effects_chain" in profile_data:
+                from .profiles import _profile_to_response
+                stored = db.query(DBVoiceProfile).filter_by(id=profile.id).one()
+                stored.effects_chain = json.dumps(effects) if effects else None
+                db.commit()
+                profile = _profile_to_response(stored)
             return profile
             
     except zipfile.BadZipFile:
@@ -302,6 +318,11 @@ def export_generation_to_zip(generation_id: str, db: Session) -> bytes:
                 "duration": generation.duration,
                 "seed": generation.seed,
                 "instruct": generation.instruct,
+                "engine": generation.engine,
+                "model_size": generation.model_size,
+                "emotion": generation.emotion,
+                "speed": generation.speed,
+                "pitch": generation.pitch,
                 "created_at": generation.created_at.isoformat(),
             },
             "profile": {
@@ -377,6 +398,16 @@ async def import_generation_from_zip(file_bytes: bytes, db: Session) -> dict:
             for field in required_fields:
                 if field not in generation_data:
                     raise ValueError(f"Invalid manifest.json: missing generation.{field}")
+
+            # Validate delivery before writing files or rows. Older archives
+            # omit these fields and retain their previous Qwen defaults.
+            delivery = {key: generation_data[key] for key in
+                        ("engine", "model_size", "emotion", "speed", "pitch") if key in generation_data}
+            validation = dict(delivery)
+            if validation.get("engine") == "import":
+                validation["engine"] = None
+            GenerationRequest(profile_id="archive", text=generation_data["text"],
+                              language=generation_data["language"], **validation)
             
             # Find audio file in archive
             audio_files = [f for f in namelist if f.startswith("audio/") and f.endswith(".wav")]
@@ -432,6 +463,7 @@ async def import_generation_from_zip(file_bytes: bytes, db: Session) -> dict:
                     duration=generation_data["duration"],
                     seed=generation_data.get("seed"),
                     instruct=generation_data.get("instruct"),
+                    **delivery,
                     created_at=datetime.now(UTC),
                 )
                 

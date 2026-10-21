@@ -29,6 +29,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { EMOTION_ENGINES, EngineModelSelector, SPEED_ENGINES } from './EngineModelSelector';
 import { locutionDirection, locutionSpeed, locutionText } from '@/lib/utils/locution';
 import { LocutionTemplate } from './LocutionTemplate';
+import { profileProsody } from '@/lib/utils/generationProsody';
 import { ParalinguisticInput } from './ParalinguisticInput';
 
 const SPEED_OPTIONS = [0.5, 0.75, 0.9, 1.0, locutionSpeed, 1.1, 1.25, 1.5, 1.75, 2.0];
@@ -54,6 +55,7 @@ export function FloatingGenerateBox({
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const prosodyProfileId = useRef<string | null>(null);
   const matchRoute = useMatchRoute();
   const isStoriesRoute = matchRoute({ to: '/stories' });
   const selectedStoryId = useStoryStore((state) => state.selectedStoryId);
@@ -158,9 +160,24 @@ export function FloatingGenerateBox({
     if (form.getValues('text') === locutionText(other)) {
       form.setValue('text', locutionText(watchedEngine), { shouldDirty: true });
       form.setValue('instruct', watchedEngine === 'fish' ? locutionDirection : '');
-      form.setValue('emotion', watchedEngine === 'minimax' ? 'fluent' : undefined);
     }
   }, [watchedEngine, form]);
+
+  // Apply each voice's delivery once on selection, without overwriting edits
+  // when effects or other profile fields refetch in the background.
+  useEffect(() => {
+    if (
+      !selectedProfile ||
+      selectedProfile.id !== selectedProfileId ||
+      prosodyProfileId.current === selectedProfile.id
+    )
+      return;
+    const defaults = profileProsody(selectedProfile);
+    form.setValue('emotion', defaults.emotion);
+    form.setValue('speed', defaults.speed);
+    form.setValue('pitch', defaults.pitch);
+    prosodyProfileId.current = selectedProfile.id;
+  }, [selectedProfile, selectedProfileId, form]);
 
   // Sync generation form language, engine, and effects with selected profile
   type EngineValue =
@@ -722,13 +739,19 @@ export function FloatingGenerateBox({
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent side="top">
-                                {SPEED_OPTIONS.map((speed) => (
-                                  <SelectItem key={speed} value={String(speed)} className="text-xs">
-                                    {speed === 1.0
-                                      ? `${t('generation.prosody.speed')} 1×`
-                                      : `${speed}×`}
-                                  </SelectItem>
-                                ))}
+                                {[...new Set([...SPEED_OPTIONS, field.value ?? 1])]
+                                  .sort((a, b) => a - b)
+                                  .map((speed) => (
+                                    <SelectItem
+                                      key={speed}
+                                      value={String(speed)}
+                                      className="text-xs"
+                                    >
+                                      {speed === 1.0
+                                        ? `${t('generation.prosody.speed')} 1×`
+                                        : `${speed}×`}
+                                    </SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
                           </FormItem>
@@ -751,15 +774,21 @@ export function FloatingGenerateBox({
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent side="top">
-                                {PITCH_OPTIONS.map((pitch) => (
-                                  <SelectItem key={pitch} value={String(pitch)} className="text-xs">
-                                    {pitch === 0
-                                      ? `${t('generation.prosody.pitch')} 0`
-                                      : pitch > 0
-                                        ? `+${pitch} st`
-                                        : `${pitch} st`}
-                                  </SelectItem>
-                                ))}
+                                {[...new Set([...PITCH_OPTIONS, field.value ?? 0])]
+                                  .sort((a, b) => a - b)
+                                  .map((pitch) => (
+                                    <SelectItem
+                                      key={pitch}
+                                      value={String(pitch)}
+                                      className="text-xs"
+                                    >
+                                      {pitch === 0
+                                        ? `${t('generation.prosody.pitch')} 0`
+                                        : pitch > 0
+                                          ? `+${pitch} st`
+                                          : `${pitch} st`}
+                                    </SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
                           </FormItem>
