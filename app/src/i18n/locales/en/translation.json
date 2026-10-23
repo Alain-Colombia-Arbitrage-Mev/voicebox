@@ -746,6 +746,20 @@
         "fluent": "Fluent",
         "whisper": "Whisper"
       }
+    },
+    "breath": {
+      "style": "Breath",
+      "styleProfile": "Profile default",
+      "intensity": "Intensity",
+      "intensityNeutral": "Intensity 0",
+      "intensitySofter": "Softer",
+      "intensityStronger": "Stronger",
+      "styles": {
+        "off": "No breath script",
+        "affirmation": "Affirmations",
+        "meditation": "Meditation",
+        "narration": "Narration"
+      }
     }
   },
   "main": {

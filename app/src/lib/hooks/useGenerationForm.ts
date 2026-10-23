@@ -31,10 +31,22 @@ const generationSchema = z.object({
     ])
     .optional(),
   emotion: z
-    .enum(['happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'calm', 'fluent', 'whisper'])
+    .enum([
+      'happy',
+      'sad',
+      'angry',
+      'fearful',
+      'disgusted',
+      'surprised',
+      'calm',
+      'fluent',
+      'whisper',
+    ])
     .optional(),
   speed: z.number().min(0.5).max(2.0).optional(),
   pitch: z.number().int().min(-12).max(12).optional(),
+  breathStyle: z.enum(['off', 'affirmation', 'meditation', 'narration']).optional(),
+  intensity: z.number().int().min(-100).max(100).optional(),
   personality: z.boolean().optional(),
 });
 
@@ -158,6 +170,8 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
       const supportsEmotion = engine === 'minimax';
       const supportsSpeed = engine === 'minimax' || engine === 'kokoro';
       const supportsPitch = engine === 'minimax';
+      // Breath scripting and voice_modify are MiniMax-only markup.
+      const supportsBreath = engine === 'minimax';
       const effectsChain = options.getEffectsChain?.();
       // This now returns immediately with status="generating"
       const result = await generation.mutateAsync({
@@ -171,6 +185,8 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         emotion: supportsEmotion ? data.emotion : undefined,
         speed: supportsSpeed && data.speed !== 1.0 ? data.speed : undefined,
         pitch: supportsPitch && data.pitch !== 0 ? data.pitch : undefined,
+        breath_style: supportsBreath ? data.breathStyle : undefined,
+        intensity: supportsBreath && data.intensity !== 0 ? data.intensity : undefined,
         personality: data.personality || undefined,
         max_chunk_chars: maxChunkChars,
         crossfade_ms: crossfadeMs,
@@ -192,6 +208,8 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         emotion: data.emotion,
         speed: data.speed,
         pitch: data.pitch,
+        breathStyle: data.breathStyle,
+        intensity: data.intensity,
         personality: data.personality,
       });
       options.onSuccess?.(result.id);

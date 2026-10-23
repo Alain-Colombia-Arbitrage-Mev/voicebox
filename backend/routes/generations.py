@@ -26,6 +26,36 @@ IMPORT_AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".we
 IMPORT_AUDIO_MAX_BYTES = 200 * 1024 * 1024  # 200 MB
 
 
+def _resolve_delivery(data: models.GenerationRequest, profile) -> dict:
+    """Merge the request's delivery controls over the profile's defaults.
+
+    A profile cloned in a given register carries that register; an explicit
+    value on the request always wins.
+    """
+    defaults = {}
+    style = getattr(profile, "default_breath_style", None)
+    if style:
+        defaults["breath_style"] = style
+    intensity = getattr(profile, "default_intensity", None)
+    if intensity is not None:
+        defaults["intensity"] = intensity
+    return {**defaults, **data.delivery_options()}
+
+
+def _stored_delivery(gen: DBGeneration) -> dict | None:
+    """Read back the delivery controls a generation was produced with."""
+    import json
+
+    if not getattr(gen, "delivery", None):
+        return None
+    try:
+        stored = json.loads(gen.delivery)
+    except (ValueError, TypeError):
+        logger.warning("Generation %s has unreadable delivery JSON", gen.id)
+        return None
+    return stored if isinstance(stored, dict) else None
+
+
 def _get_or_create_import_profile(db: Session) -> DBVoiceProfile:
     """Singleton profile every imported audio clip points at — keeps the
     Generation FK happy without making profile_id nullable across the schema."""
@@ -80,6 +110,7 @@ async def generate_speech(
     emotion = data.emotion or getattr(profile, "default_emotion", None)
     speed = data.speed if data.speed is not None else getattr(profile, "default_speed", None)
     pitch = data.pitch if data.pitch is not None else getattr(profile, "default_pitch", None)
+    delivery = _resolve_delivery(data, profile)
 
     text = data.text
     source = "manual"
@@ -110,6 +141,7 @@ async def generate_speech(
         emotion=emotion,
         speed=speed,
         pitch=pitch,
+        delivery=delivery,
     )
 
     task_manager.start_generation(
@@ -147,6 +179,8 @@ async def generate_speech(
             emotion=emotion,
             speed=speed,
             pitch=pitch,
+            delivery=delivery,
+            target_lufs=data.target_lufs,
             mode="generate",
             max_chunk_chars=data.max_chunk_chars,
             crossfade_ms=data.crossfade_ms,
@@ -194,6 +228,7 @@ async def retry_generation(generation_id: str, db: Session = Depends(get_db)):
             emotion=gen.emotion,
             speed=gen.speed,
             pitch=gen.pitch,
+            delivery=_stored_delivery(gen),
             mode="retry",
         )
     )
@@ -241,6 +276,7 @@ async def regenerate_generation(generation_id: str, db: Session = Depends(get_db
             emotion=gen.emotion,
             speed=gen.speed,
             pitch=gen.pitch,
+            delivery=_stored_delivery(gen),
             mode="regenerate",
             version_id=version_id,
         )
@@ -390,6 +426,7 @@ async def stream_speech(
         emotion=data.emotion or getattr(profile, "default_emotion", None),
         speed=data.speed if data.speed is not None else getattr(profile, "default_speed", None),
         pitch=data.pitch if data.pitch is not None else getattr(profile, "default_pitch", None),
+        delivery=_resolve_delivery(data, profile),
         max_chunk_chars=data.max_chunk_chars,
         crossfade_ms=data.crossfade_ms,
         trim_fn=trim_fn,
@@ -413,9 +450,13 @@ async def stream_speech(
         audio = apply_effects(audio, sample_rate, effects_chain_config)
 
     if data.normalize:
-        from ..utils.audio import normalize_audio
+        from ..utils.audio import DEFAULT_TARGET_LUFS, normalize_loudness
 
-        audio = normalize_audio(audio)
+        audio = normalize_loudness(
+            audio,
+            sample_rate,
+            data.target_lufs if data.target_lufs is not None else DEFAULT_TARGET_LUFS,
+        )
 
     wav_bytes = tts.audio_to_wav_bytes(audio, sample_rate)
 

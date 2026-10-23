@@ -41,6 +41,8 @@ async def run_generation(
     emotion: Optional[str] = None,
     speed: Optional[float] = None,
     pitch: Optional[int] = None,
+    delivery: Optional[dict] = None,
+    target_lufs: Optional[float] = None,
     mode: Literal["generate", "retry", "regenerate"],
     max_chunk_chars: Optional[int] = None,
     crossfade_ms: Optional[int] = None,
@@ -58,7 +60,13 @@ async def run_generation(
         load_engine_model,
     )
     from ..utils.chunked_tts import generate_chunked
-    from ..utils.audio import has_tts_runaway, normalize_audio, save_audio, trim_tts_output
+    from ..utils.audio import (
+        DEFAULT_TARGET_LUFS,
+        has_tts_runaway,
+        normalize_loudness,
+        save_audio,
+        trim_tts_output,
+    )
 
     task_manager = get_task_manager()
     bg_db = next(get_db())
@@ -89,6 +97,7 @@ async def run_generation(
             emotion=emotion,
             speed=speed,
             pitch=pitch,
+            delivery=delivery,
             trim_fn=trim_fn,
             runaway_detector=runaway_detector,
         )
@@ -100,8 +109,13 @@ async def run_generation(
         audio, sample_rate = await generate_chunked(tts_model, text, voice_prompt, **gen_kwargs)
 
         # --- Normalize (generate and regenerate always; retry skips) -----
+        # The clean version is levelled here; the effects-processed version
+        # is levelled again after the chain, which is where mastering ends.
+        loudness_target = (target_lufs if target_lufs is not None else DEFAULT_TARGET_LUFS)
         if normalize or mode == "regenerate":
-            audio = normalize_audio(audio)
+            audio = normalize_loudness(audio, sample_rate, loudness_target)
+        else:
+            loudness_target = None
 
         duration = len(audio) / sample_rate
 
@@ -114,6 +128,7 @@ async def run_generation(
                 effects_chain=effects_chain,
                 save_audio=save_audio,
                 db=bg_db,
+                loudness_target=loudness_target,
             )
         elif mode == "retry":
             final_path = _save_retry(
@@ -186,8 +201,14 @@ def _save_generate(
     effects_chain: Optional[list],
     save_audio,
     db,
+    loudness_target: Optional[float] = None,
 ) -> str:
     """Save clean version and optionally an effects-processed version.
+
+    ``loudness_target`` re-levels the processed version after the chain has
+    run — a compressor and a limiter both change perceived loudness, so
+    normalizing before them would leave every preset at its own level.
+    Pass None to leave the processed audio at whatever the chain produced.
 
     Returns the final audio path (processed if effects were applied,
     otherwise clean).
@@ -224,6 +245,12 @@ def _save_generate(
             )
         else:
             processed_audio = apply_effects(audio, sample_rate, effects_chain)
+            if loudness_target is not None:
+                from ..utils.audio import normalize_loudness
+
+                processed_audio = normalize_loudness(
+                    processed_audio, sample_rate, loudness_target
+                )
             processed_path = config.get_generations_dir() / f"{generation_id}_processed.wav"
             save_audio(processed_audio, str(processed_path), sample_rate)
             final_audio_path = str(processed_path)
@@ -267,6 +294,8 @@ async def generate_audio_sync(
     emotion: Optional[str] = None,
     speed: Optional[float] = None,
     pitch: Optional[int] = None,
+    delivery: Optional[dict] = None,
+    target_lufs: Optional[float] = None,
     normalize: bool = True,
     max_chunk_chars: Optional[int] = None,
     crossfade_ms: Optional[int] = None,
@@ -290,7 +319,12 @@ async def generate_audio_sync(
         load_engine_model,
     )
     from ..utils.chunked_tts import generate_chunked
-    from ..utils.audio import has_tts_runaway, normalize_audio, trim_tts_output
+    from ..utils.audio import (
+        DEFAULT_TARGET_LUFS,
+        has_tts_runaway,
+        normalize_loudness,
+        trim_tts_output,
+    )
     from . import tts
 
     bg_db = next(get_db())
@@ -317,6 +351,7 @@ async def generate_audio_sync(
         emotion=emotion,
         speed=speed,
         pitch=pitch,
+        delivery=delivery,
         trim_fn=trim_fn,
         runaway_detector=runaway_detector,
     )
@@ -330,7 +365,9 @@ async def generate_audio_sync(
     )
 
     if normalize:
-        audio = normalize_audio(audio)
+        audio = normalize_loudness(
+            audio, sample_rate, target_lufs if target_lufs is not None else DEFAULT_TARGET_LUFS
+        )
 
     return tts.audio_to_wav_bytes(audio, sample_rate)
 

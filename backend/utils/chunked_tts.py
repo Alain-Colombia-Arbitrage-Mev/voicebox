@@ -15,6 +15,8 @@ from typing import List, Tuple
 
 import numpy as np
 
+from ..services.breath import PAUSE_MARKER_RE, SOUND_TAG_RE
+
 logger = logging.getLogger("voicebox.chunked-tts")
 
 # Default chunk size in characters.  Can be overridden per-request via
@@ -55,9 +57,20 @@ _ABBREVIATIONS = frozenset(
     }
 )
 
-# Paralinguistic tags used by Chatterbox Turbo.  The splitter must never
-# cut inside one of these.
-_PARA_TAG_RE = re.compile(r"\[[^\]]*\]")
+# Atomic markup the splitter must never cut through: Chatterbox's
+# ``[laugh]`` tags, MiniMax's ``(inhale)`` sound tags, and MiniMax pause
+# markers ``<#1.5#>``.  A marker cut in half stops being a marker and gets
+# read out loud.
+_ATOMIC_MARKUP_RE = re.compile(
+    "|".join(
+        (
+            r"\[[^\]]*\]",
+            SOUND_TAG_RE.pattern,
+            PAUSE_MARKER_RE.pattern,
+        )
+    ),
+    re.IGNORECASE,
+)
 
 
 def split_text_into_chunks(text: str, max_chars: int = DEFAULT_MAX_CHUNK_CHARS) -> List[str]:
@@ -66,8 +79,8 @@ def split_text_into_chunks(text: str, max_chars: int = DEFAULT_MAX_CHUNK_CHARS) 
     Priority: sentence-end (``.!?`` not preceded by an abbreviation and not
     inside brackets) → clause boundary (``;:,—``) → whitespace → hard cut.
 
-    Paralinguistic tags like ``[laugh]`` are treated as atomic and will not
-    be split across chunks.
+    Markup like ``[laugh]``, ``(inhale)`` and ``<#1.5#>`` is atomic and
+    will not be split across chunks.
     """
     text = text.strip()
     if not text:
@@ -110,7 +123,7 @@ def _find_last_sentence_end(text: str) -> int:
     """Return the index of the last sentence-ending punctuation in *text*.
 
     Skips periods that follow common abbreviations (``Dr.``, ``Mr.``, etc.)
-    and periods inside bracket tags (``[laugh]``).  Also handles CJK
+    and periods inside markup tags (``[laugh]``).  Also handles CJK
     sentence-ending punctuation (``。！？``).
     """
     best = -1
@@ -154,18 +167,18 @@ def _find_last_clause_boundary(text: str) -> int:
 
 
 def _inside_bracket_tag(text: str, pos: int) -> bool:
-    """Return True if *pos* falls inside a ``[...]`` tag."""
-    for m in _PARA_TAG_RE.finditer(text):
+    """Return True if *pos* falls inside an atomic markup token."""
+    for m in _ATOMIC_MARKUP_RE.finditer(text):
         if m.start() < pos < m.end():
             return True
     return False
 
 
 def _safe_hard_cut(segment: str, max_chars: int) -> int:
-    """Find a hard-cut position that doesn't split a ``[tag]``."""
+    """Find a hard-cut position that doesn't split a markup token."""
     cut = max_chars - 1
-    # Check if the cut falls inside a bracket tag; if so, move before it
-    for m in _PARA_TAG_RE.finditer(segment):
+    # Check if the cut falls inside markup; if so, move before it
+    for m in _ATOMIC_MARKUP_RE.finditer(segment):
         if m.start() < cut < m.end():
             return m.start() - 1 if m.start() > 0 else cut
     return cut
@@ -213,6 +226,7 @@ async def generate_chunked(
     emotion: str | None = None,
     speed: float | None = None,
     pitch: int | None = None,
+    delivery: dict | None = None,
     max_chunk_chars: int = DEFAULT_MAX_CHUNK_CHARS,
     crossfade_ms: int = 50,
     trim_fn=None,
@@ -240,6 +254,11 @@ async def generate_chunked(
         Prosody controls. Only forwarded to backends that declare them in
         a ``PROSODY_PARAMS`` class attribute (e.g. MiniMax, Kokoro) so
         existing backend signatures stay untouched.
+    delivery : dict | None
+        Further engine-specific delivery controls (breath style, vol,
+        voice_modify…), filtered through ``PROSODY_PARAMS`` the same way.
+        Keys a backend does not declare are dropped, so one caller can
+        target every engine.
     max_chunk_chars : int
         Maximum characters per chunk (default 800).
     crossfade_ms : int
@@ -258,9 +277,11 @@ async def generate_chunked(
     (audio, sample_rate) : Tuple[np.ndarray, int]
     """
     supported_prosody = getattr(backend, "PROSODY_PARAMS", ())
+    candidates = {"emotion": emotion, "speed": speed, "pitch": pitch}
+    candidates.update(delivery or {})
     prosody_kwargs = {
         key: value
-        for key, value in (("emotion", emotion), ("speed", speed), ("pitch", pitch))
+        for key, value in candidates.items()
         if value is not None and key in supported_prosody
     }
 

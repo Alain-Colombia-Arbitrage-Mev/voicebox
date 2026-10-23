@@ -16,6 +16,7 @@ Reference audio requirements (enforced server-side by MiniMax):
 mp3/m4a/wav, 10 seconds to 5 minutes, max 20 MB.
 """
 
+import hashlib
 import logging
 import re
 import uuid
@@ -23,16 +24,23 @@ from typing import Optional
 
 import numpy as np
 
+from ..services import breath
 from ..utils.cache import get_cache_key, get_cached_voice_prompt, cache_voice_prompt
 from .base import combine_voice_prompts as _combine_voice_prompts
 
 logger = logging.getLogger(__name__)
 
 # PCM output keeps decoding dependency-free: hex → int16 → float32.
-MINIMAX_SAMPLE_RATE = 32000
+# 44.1 kHz is the highest rate the API offers; the extra headroom matters
+# once a de-esser and a limiter run over the result.
+MINIMAX_SAMPLE_RATE = 44100
 
 DEFAULT_MINIMAX_HOST = "https://api.minimax.io"
 DEFAULT_MINIMAX_MODEL = "speech-2.8-hd"
+
+# Voice design bills the preview by the character, so this is deliberately
+# short: the audio is thrown away and only the voice_id is kept.
+DESIGN_PREVIEW_TEXT = "Respira hondo y suelta el aire despacio."
 
 # Emotions accepted by voice_setting.emotion. "fluent" and "whisper"
 # need speech-2.6+; the API rejects them on older models.
@@ -100,6 +108,20 @@ LANGUAGE_BOOST_MAP = {
     "tr": "Turkish",
 }
 
+# Model families that *perform* the markup instead of reading it aloud.
+# Parenthesised interjections — (inhale), (sighs) — arrived with 2.8;
+# native <#x#> pauses work from 2.6 on.
+SOUND_TAG_MODELS = ("speech-2.8",)
+NATIVE_PAUSE_MODELS = ("speech-2.8", "speech-2.6")
+
+# voice_modify.sound_effects accepts at most one of these.
+MINIMAX_SOUND_EFFECTS = {
+    "spacious_echo",
+    "auditorium_echo",
+    "lofi_telephone",
+    "robotic",
+}
+
 _VOICE_ID_RE = re.compile(r"[^A-Za-z0-9_-]")
 
 # Pause markers like <#1.5#> are handled locally: the text is split on
@@ -126,7 +148,17 @@ class MiniMaxTTSBackend:
 
     # Extra generate() kwargs this backend honors; generate_chunked only
     # forwards prosody params to backends that declare them.
-    PROSODY_PARAMS = ("emotion", "speed", "pitch")
+    PROSODY_PARAMS = (
+        "emotion",
+        "speed",
+        "pitch",
+        "vol",
+        "breath_style",
+        "intensity",
+        "timbre",
+        "sound_effects",
+        "text_normalization",
+    )
 
     def __init__(self):
         self.model_size = "default"
@@ -242,6 +274,89 @@ class MiniMaxTTSBackend:
         except Exception:
             logger.debug("Failed to touch minimax voice %s", voice_id, exc_info=True)
 
+    # ── Voice design ──────────────────────────────────────────────────
+
+    async def create_designed_voice(
+        self,
+        design_prompt: str,
+        use_cache: bool = True,
+    ) -> tuple[dict, bool]:
+        """Turn a written description into a reusable remote voice.
+
+        Unlike cloning there is no reference audio: MiniMax invents the
+        voice from *design_prompt*. The resulting voice_id is registered
+        exactly like a clone, so the same description is never designed —
+        or billed — twice.
+
+        Returns:
+            Tuple of (voice_prompt, was_cached).
+        """
+        normalized = " ".join(design_prompt.split())
+        if not normalized:
+            raise ValueError("Voice design requires a non-empty prompt")
+
+        design_hash = hashlib.sha256(normalized.encode()).hexdigest()
+        cache_key = ("minimax_design_" + design_hash) if use_cache else None
+
+        def _build_prompt(voice_id: str) -> dict:
+            return {
+                "voice_type": "designed_remote",
+                "engine": "minimax",
+                "minimax_voice_id": voice_id,
+                "sample_hash": design_hash,
+                "design_prompt": normalized,
+            }
+
+        if cache_key:
+            cached = get_cached_voice_prompt(cache_key)
+            if isinstance(cached, dict) and cached.get("minimax_voice_id"):
+                self._registry_save(cached["minimax_voice_id"], design_hash)
+                return _build_prompt(cached["minimax_voice_id"]), True
+
+        registered = self._registry_lookup(design_hash)
+        if registered:
+            voice_prompt = _build_prompt(registered)
+            if cache_key:
+                cache_voice_prompt(cache_key, voice_prompt)
+            return voice_prompt, True
+
+        settings = self._get_settings()
+        voice_id = await self._design_voice(settings, normalized)
+        self._registry_save(voice_id, design_hash)
+
+        voice_prompt = _build_prompt(voice_id)
+        if cache_key:
+            cache_voice_prompt(cache_key, voice_prompt)
+        return voice_prompt, False
+
+    async def _design_voice(self, settings: dict, design_prompt: str) -> str:
+        import httpx
+
+        payload = {
+            "prompt": design_prompt,
+            # The preview is billed by character, so keep it short. It is
+            # discarded — the voice_id is what we are after.
+            "preview_text": DESIGN_PREVIEW_TEXT,
+            "voice_id": "vbd" + _VOICE_ID_RE.sub("", uuid.uuid4().hex)[:21],
+        }
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+            response = await client.post(
+                self._url(settings, "/v1/voice_design"),
+                headers={**self._headers(settings), "Content-Type": "application/json"},
+                json=payload,
+            )
+        response.raise_for_status()
+        body = response.json()
+        self._check_base_resp(body, "voice design")
+
+        voice_id = body.get("voice_id")
+        if not voice_id:
+            raise RuntimeError("MiniMax voice design returned no voice_id")
+
+        logger.info("MiniMax voice designed: %s", voice_id)
+        return voice_id
+
     # ── Model lifecycle (no-ops for a remote engine) ──────────────────
 
     def is_loaded(self) -> bool:
@@ -261,6 +376,16 @@ class MiniMaxTTSBackend:
 
     def _is_model_cached(self, model_size: str = "default") -> bool:
         return True
+
+    # ── Model capabilities ────────────────────────────────────────────
+
+    @staticmethod
+    def supports_sound_tags(model: str) -> bool:
+        return model.startswith(SOUND_TAG_MODELS)
+
+    @staticmethod
+    def supports_native_pauses(model: str) -> bool:
+        return model.startswith(NATIVE_PAUSE_MODELS)
 
     # ── Voice cloning ─────────────────────────────────────────────────
 
@@ -457,6 +582,12 @@ class MiniMaxTTSBackend:
         emotion: Optional[str] = None,
         speed: Optional[float] = None,
         pitch: Optional[int] = None,
+        vol: Optional[float] = None,
+        breath_style: Optional[str] = None,
+        intensity: Optional[int] = None,
+        timbre: Optional[int] = None,
+        sound_effects: Optional[str] = None,
+        text_normalization: Optional[bool] = None,
     ) -> tuple[np.ndarray, int]:
         """
         Generate audio via the MiniMax t2a_v2 endpoint.
@@ -470,6 +601,16 @@ class MiniMaxTTSBackend:
             emotion: One of MINIMAX_EMOTIONS, or None for auto
             speed: Speech rate in [0.5, 2.0]
             pitch: Semitone shift in [-12, 12]
+            vol: Loudness multiplier in (0, 10]
+            breath_style: Key of ``services.breath.BREATH_STYLES``. Scripts
+                the text with audible breaths and held silences before it
+                reaches the API.
+            intensity: voice_modify intensity in [-100, 100]; negative is
+                softer — the meditation register without touching the clone
+            timbre: voice_modify timbre in [-100, 100]; negative is fuller
+            sound_effects: One of MINIMAX_SOUND_EFFECTS
+            text_normalization: Read digits and units as words. Defaults on:
+                these scripts are full of "4 segundos" and "528 Hz".
 
         Returns:
             Tuple of (audio_array, sample_rate)
@@ -479,32 +620,45 @@ class MiniMaxTTSBackend:
             raise RuntimeError("MiniMax voice prompt is missing a voice_id")
 
         settings = self._get_settings()
+        model = settings["model"]
 
-        # Local pause-marker handling: split on <#x#>, synthesize each
-        # phrase, join with exact silences.
-        parts = _PAUSE_MARKER_RE.split(text)
-        if len(parts) > 1:
-            segments: list[np.ndarray] = []
-            sample_rate = MINIMAX_SAMPLE_RATE
-            for i, part in enumerate(parts):
-                if i % 2 == 1:  # odd indexes are the captured pause durations
-                    pause_sec = min(float(part), 30.0)
-                    segments.append(np.zeros(int(pause_sec * sample_rate), dtype=np.float32))
-                    continue
-                if not part.strip():
-                    continue
-                seg_audio, sample_rate = await self.generate(
-                    part.strip(), voice_prompt, language, seed, instruct,
-                    emotion=emotion, speed=speed, pitch=pitch,
+        # Breath scripting runs first: everything below reasons about the
+        # markers it produces.
+        text = breath.annotate(
+            text,
+            breath_style or breath.DEFAULT_STYLE,
+            sound_tags=self.supports_sound_tags(model),
+        )
+        if not self.supports_sound_tags(model):
+            # An older model would spell "(inhale)" out loud.
+            text = breath.strip_markup(text, pauses=False)
+
+        options = {
+            "emotion": emotion,
+            "speed": speed,
+            "pitch": pitch,
+            "vol": vol,
+            "intensity": intensity,
+            "timbre": timbre,
+            "sound_effects": sound_effects,
+            "text_normalization": text_normalization,
+        }
+
+        # Pause handling. 2.6+ performs <#x#> inside a single request, which
+        # keeps one prosodic arc across the whole piece. Older models get the
+        # local fallback: split on the markers, synthesize each phrase and
+        # splice exact silences — accurate, but every phrase restarts its
+        # intonation, so an affirmation reads like a list.
+        if not self.supports_native_pauses(model):
+            parts = _PAUSE_MARKER_RE.split(text)
+            if len(parts) > 1:
+                return await self._generate_split_on_pauses(
+                    parts, voice_prompt, language, seed, instruct, options
                 )
-                segments.append(np.asarray(seg_audio, dtype=np.float32))
-            if not segments:
-                raise RuntimeError("Pause-marker text contained no speakable segments")
-            return np.concatenate(segments), sample_rate
 
         try:
             return await self._generate_with_voice(
-                settings, voice_id, text, language, emotion, speed, pitch,
+                settings, voice_id, text, language, options,
                 is_clone=bool(voice_prompt.get("minimax_voice_id")),
             )
         except MiniMaxAPIError as e:
@@ -532,9 +686,44 @@ class MiniMaxTTSBackend:
                 refreshed = dict(voice_prompt, minimax_voice_id=new_voice_id)
                 cache_voice_prompt("minimax_" + sample_hash, refreshed)
             return await self._generate_with_voice(
-                settings, new_voice_id, text, language, emotion, speed, pitch,
-                is_clone=True,
+                settings, new_voice_id, text, language, options, is_clone=True,
             )
+
+    async def _generate_split_on_pauses(
+        self,
+        parts: list[str],
+        voice_prompt: dict,
+        language: str,
+        seed: Optional[int],
+        instruct: Optional[str],
+        options: dict,
+    ) -> tuple[np.ndarray, int]:
+        """Synthesize each phrase separately and splice exact silences.
+
+        ``parts`` alternates text and captured pause durations, as produced
+        by ``_PAUSE_MARKER_RE.split``. Used only for models that cannot
+        perform the markers themselves.
+        """
+        segments: list[np.ndarray] = []
+        sample_rate = MINIMAX_SAMPLE_RATE
+        for i, part in enumerate(parts):
+            if i % 2 == 1:  # odd indexes are the captured pause durations
+                pause_sec = min(float(part), 30.0)
+                segments.append(np.zeros(int(pause_sec * sample_rate), dtype=np.float32))
+                continue
+            if not part.strip():
+                continue
+            seg_audio, sample_rate = await self.generate(
+                part.strip(), voice_prompt, language, seed, instruct,
+                # The script is already written; re-annotating each phrase
+                # would add breaths the author never asked for.
+                breath_style="off",
+                **{k: v for k, v in options.items() if k != "breath_style"},
+            )
+            segments.append(np.asarray(seg_audio, dtype=np.float32))
+        if not segments:
+            raise RuntimeError("Pause-marker text contained no speakable segments")
+        return np.concatenate(segments), sample_rate
 
     async def _generate_with_voice(
         self,
@@ -542,21 +731,34 @@ class MiniMaxTTSBackend:
         voice_id: str,
         text: str,
         language: str,
-        emotion: Optional[str],
-        speed: Optional[float],
-        pitch: Optional[int],
+        options: dict,
         *,
         is_clone: bool,
     ) -> tuple[np.ndarray, int]:
         import httpx
+
+        emotion = options.get("emotion")
+        speed = options.get("speed")
+        pitch = options.get("pitch")
+        vol = options.get("vol")
 
         voice_setting: dict = {"voice_id": voice_id}
         if speed is not None:
             voice_setting["speed"] = max(0.5, min(2.0, float(speed)))
         if pitch is not None:
             voice_setting["pitch"] = max(-12, min(12, int(pitch)))
+        if vol is not None:
+            # (0, 10] — zero would be silence, so clamp just above it.
+            voice_setting["vol"] = max(0.01, min(10.0, float(vol)))
         if emotion and emotion in MINIMAX_EMOTIONS:
             voice_setting["emotion"] = emotion
+
+        # Digits and units ("4 segundos", "528 Hz", "día 1") are read as
+        # words instead of spelled out character by character.
+        text_normalization = options.get("text_normalization")
+        voice_setting["text_normalization"] = (
+            True if text_normalization is None else bool(text_normalization)
+        )
 
         # whisper/fluent are 2.6-series exclusives — 2.8 rejects them with
         # 2013. Swap the model for this request so ASMR just works.
@@ -578,6 +780,14 @@ class MiniMaxTTSBackend:
             "output_format": "hex",
         }
 
+        voice_modify = _build_voice_modify(options)
+        if voice_modify:
+            payload["voice_modify"] = voice_modify
+            # The API rejects voice_modify alongside raw PCM (2013). WAV is
+            # the same samples with a header, and soundfile is already a
+            # dependency, so only the decode below changes.
+            payload["audio_setting"]["format"] = "wav"
+
         async with httpx.AsyncClient(timeout=httpx.Timeout(180.0)) as client:
             resp = await client.post(
                 self._url(settings, "/v1/t2a_v2"),
@@ -592,14 +802,49 @@ class MiniMaxTTSBackend:
         if not audio_hex:
             raise RuntimeError("MiniMax returned no audio data")
 
-        pcm = np.frombuffer(bytes.fromhex(audio_hex), dtype=np.int16)
-        audio = pcm.astype(np.float32) / 32768.0
+        raw = bytes.fromhex(audio_hex)
+        sample_rate = (body.get("extra_info") or {}).get("audio_sample_rate") or MINIMAX_SAMPLE_RATE
+
+        if payload["audio_setting"]["format"] == "wav":
+            import io
+
+            import soundfile as sf
+
+            audio, sample_rate = sf.read(io.BytesIO(raw), dtype="float32", always_2d=False)
+            if audio.ndim > 1:
+                audio = audio.mean(axis=1)
+        else:
+            audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
         if is_clone:
             self._registry_touch(voice_id)
 
-        sample_rate = (body.get("extra_info") or {}).get("audio_sample_rate") or MINIMAX_SAMPLE_RATE
         return audio, int(sample_rate)
+
+
+def _build_voice_modify(options: dict) -> dict:
+    """Assemble voice_modify from the delivery options that are set.
+
+    These reshape the *performance* — softer, fuller, more spacious —
+    without re-cloning, which is why they are preferred over pitch
+    shifting for registers like meditation.
+    """
+    modify: dict = {}
+    for key in ("intensity", "timbre"):
+        value = options.get(key)
+        if value is not None:
+            modify[key] = max(-100, min(100, int(value)))
+
+    effect = options.get("sound_effects")
+    if effect:
+        if effect not in MINIMAX_SOUND_EFFECTS:
+            raise ValueError(
+                f"Unknown MiniMax sound effect {effect!r}. "
+                f"Available: {sorted(MINIMAX_SOUND_EFFECTS)}"
+            )
+        modify["sound_effects"] = effect
+
+    return modify
 
 
 # ── Anti-expiration keepalive ─────────────────────────────────────────
@@ -645,7 +890,7 @@ async def refresh_stale_voices() -> None:
     for voice_id in voice_ids:
         try:
             await backend._generate_with_voice(
-                settings, voice_id, "om", "en", None, None, None, is_clone=True
+                settings, voice_id, "om", "en", {}, is_clone=True
             )
         except MiniMaxAPIError as e:
             if e.code in _VOICE_GONE_CODES:

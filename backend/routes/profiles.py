@@ -150,6 +150,8 @@ async def copy_profile_prosody(
         raise HTTPException(status_code=404, detail="Source profile not found")
 
     target.default_emotion = source.default_emotion
+    target.default_breath_style = source.default_breath_style
+    target.default_intensity = source.default_intensity
     target.default_speed = source.default_speed
     target.default_pitch = source.default_pitch
     if data.include_effects:
@@ -201,6 +203,8 @@ async def analyze_profile_prosody(
     profile.default_emotion = analysis.emotion
     profile.default_speed = stored_speed
     profile.default_pitch = analysis.pitch
+    profile.default_breath_style = analysis.breath_style
+    profile.default_intensity = analysis.intensity
 
     # Reproduce the sample's production character (room reverb / echo) as
     # the profile's default effects chain. Never clobber a chain the user
@@ -214,6 +218,8 @@ async def analyze_profile_prosody(
         default_emotion=analysis.emotion,
         default_speed=stored_speed,
         default_pitch=analysis.pitch,
+        default_breath_style=analysis.breath_style,
+        default_intensity=analysis.intensity,
         syllables_per_sec=analysis.syllables_per_sec,
         f0_median_hz=analysis.f0_median_hz,
         f0_std_semitones=analysis.f0_std_semitones,
@@ -375,6 +381,8 @@ async def _auto_capture_prosody(profile_id: str, db: Session) -> None:
     profile.default_emotion = analysis.emotion
     profile.default_speed = None  # clones carry their own pacing
     profile.default_pitch = 0
+    profile.default_breath_style = analysis.breath_style
+    profile.default_intensity = analysis.intensity
     if analysis.effects_chain and not profile.effects_chain:
         profile.effects_chain = _json.dumps(analysis.effects_chain)
     db.commit()

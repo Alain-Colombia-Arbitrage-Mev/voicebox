@@ -746,6 +746,20 @@
         "fluent": "Fluido",
         "whisper": "Susurro"
       }
+    },
+    "breath": {
+      "style": "Respiración",
+      "styleProfile": "Según el perfil",
+      "intensity": "Intensidad",
+      "intensityNeutral": "Intensidad 0",
+      "intensitySofter": "Más suave",
+      "intensityStronger": "Más fuerte",
+      "styles": {
+        "off": "Sin guion respiratorio",
+        "affirmation": "Afirmaciones",
+        "meditation": "Meditación",
+        "narration": "Narración"
+      }
     }
   },
   "main": {

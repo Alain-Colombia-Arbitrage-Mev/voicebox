@@ -15,6 +15,14 @@ Supported effect types:
   - highpass     (high-pass filter)
   - lowpass      (low-pass filter)
   - pitch_shift (semitone pitch shifting)
+  - deesser     (tame sibilance without dulling the voice)
+  - peak_eq     (bell EQ — presence, or notch a resonance)
+  - high_shelf  (air above a corner frequency)
+  - limiter     (ceiling before the file is written)
+
+Most effects map straight onto a pedalboard plugin.  ``deesser`` has no
+pedalboard equivalent, so it is implemented here and applied in chain
+order alongside the plugins — see ``apply_effects``.
 """
 
 from __future__ import annotations
@@ -28,10 +36,13 @@ from pedalboard import (
     Reverb,
     Compressor,
     Gain,
+    HighShelfFilter,
     HighpassFilter,
+    Limiter,
     LowpassFilter,
     Delay,
     NoiseGate,
+    PeakFilter,
     PitchShift,
 )
 
@@ -162,6 +173,79 @@ EFFECT_REGISTRY: Dict[str, Dict[str, Any]] = {
             "semitones": {"default": 0.0, "min": -12.0, "max": 12.0, "step": 0.5, "description": "Semitones to shift"},
         },
     },
+    "deesser": {
+        # No pedalboard equivalent — see _apply_deesser.
+        "fn": "_apply_deesser",
+        "label": "De-esser",
+        "description": (
+            "Compresses only the sibilance band, so harsh S sounds settle "
+            "without dulling the voice. The threshold is an absolute level, "
+            "calibrated for audio that has already been loudness-normalized "
+            "— on a much quieter input it simply will not engage."
+        ),
+        "params": {
+            "frequency_hz": {
+                "default": 6000.0,
+                "min": 2000.0,
+                "max": 12000.0,
+                "step": 100.0,
+                "description": "Where sibilance starts (Hz)",
+            },
+            "threshold_db": {
+                "default": -38.0,
+                "min": -60.0,
+                "max": 0.0,
+                "step": 0.5,
+                "description": "Threshold (dB)",
+            },
+            "ratio": {"default": 5.0, "min": 1.0, "max": 20.0, "step": 0.1, "description": "Compression ratio"},
+        },
+    },
+    "peak_eq": {
+        "cls": PeakFilter,
+        "label": "Bell EQ",
+        "description": "Boost or cut a band — presence around 3 kHz, or notch a resonance.",
+        "params": {
+            "cutoff_frequency_hz": {
+                "default": 3000.0,
+                "min": 40.0,
+                "max": 16000.0,
+                "step": 10.0,
+                "description": "Centre frequency (Hz)",
+            },
+            "gain_db": {"default": 0.0, "min": -24.0, "max": 24.0, "step": 0.1, "description": "Gain (dB)"},
+            "q": {"default": 0.8, "min": 0.1, "max": 10.0, "step": 0.1, "description": "Q (bandwidth)"},
+        },
+    },
+    "high_shelf": {
+        "cls": HighShelfFilter,
+        "label": "High Shelf",
+        "description": "Lifts or tames everything above the corner frequency — air, or the top off a bright clone.",
+        "params": {
+            "cutoff_frequency_hz": {
+                "default": 8000.0,
+                "min": 500.0,
+                "max": 16000.0,
+                "step": 10.0,
+                "description": "Corner frequency (Hz)",
+            },
+            "gain_db": {"default": 0.0, "min": -24.0, "max": 24.0, "step": 0.1, "description": "Gain (dB)"},
+            "q": {"default": 0.7, "min": 0.1, "max": 10.0, "step": 0.1, "description": "Q (slope)"},
+        },
+    },
+    "limiter": {
+        "cls": Limiter,
+        "label": "Limiter",
+        "description": (
+            "Loudness maximizer: pushes the signal up against the ceiling. "
+            "For a plain output ceiling you want the loudness normalization "
+            "stage instead, which limits peaks without adding makeup gain."
+        ),
+        "params": {
+            "threshold_db": {"default": -1.0, "min": -24.0, "max": 0.0, "step": 0.1, "description": "Ceiling (dB)"},
+            "release_ms": {"default": 100.0, "min": 1.0, "max": 1000.0, "step": 1.0, "description": "Release (ms)"},
+        },
+    },
 }
 
 
@@ -239,6 +323,119 @@ BUILTIN_PRESETS: Dict[str, Dict[str, Any]] = {
                     "delay_seconds": 0.25,
                     "feedback": 0.3,
                     "mix": 0.2,
+                },
+            },
+        ],
+    },
+    "voice_master": {
+        "name": "Voice Master",
+        "sort_order": 3,
+        "description": "Broadcast finish for spoken word: rumble out, sibilance tamed, presence lifted. Expects loudness normalization on",
+        "effects_chain": [
+            # Rumble, HVAC and plosive thump live below the voice.
+            {
+                "type": "highpass",
+                "enabled": True,
+                "params": {"cutoff_frequency_hz": 80.0},
+            },
+            # Before the compressor, so it never has an S to pump against.
+            {
+                "type": "deesser",
+                "enabled": True,
+                "params": {"frequency_hz": 6500.0, "threshold_db": -38.0, "ratio": 5.0},
+            },
+            # Gentle: 2:1 evens out the delivery without flattening a breath.
+            {
+                "type": "compressor",
+                "enabled": True,
+                "params": {
+                    "threshold_db": -18.0,
+                    "ratio": 2.0,
+                    "attack_ms": 12.0,
+                    "release_ms": 180.0,
+                },
+            },
+            # A small presence lift is what reads as "close to the mic".
+            {
+                "type": "peak_eq",
+                "enabled": True,
+                "params": {"cutoff_frequency_hz": 3000.0, "gain_db": 1.5, "q": 0.8},
+            },
+        ],
+    },
+    "meditation_voice": {
+        "name": "Meditation Voice",
+        "sort_order": 4,
+        "description": "Warm and uncompressed — the opposite of a broadcast finish. For guided practice, where a presence lift reads as advertising",
+        "effects_chain": [
+            {
+                "type": "highpass",
+                "enabled": True,
+                "params": {"cutoff_frequency_hz": 70.0},
+            },
+            {
+                "type": "deesser",
+                "enabled": True,
+                "params": {"frequency_hz": 6500.0, "threshold_db": -40.0, "ratio": 6.0},
+            },
+            # 1.6:1 with a slow attack: catches the odd loud word and leaves
+            # the breath, the decay and the quiet endings where they are.
+            {
+                "type": "compressor",
+                "enabled": True,
+                "params": {
+                    "threshold_db": -24.0,
+                    "ratio": 1.6,
+                    "attack_ms": 25.0,
+                    "release_ms": 400.0,
+                },
+            },
+            # No presence bell here. Lifting 3 kHz is exactly what makes a
+            # voice sound like it is selling something; this takes the edge
+            # off the top instead.
+            {
+                "type": "high_shelf",
+                "enabled": True,
+                "params": {"cutoff_frequency_hz": 7000.0, "gain_db": -2.0, "q": 0.7},
+            },
+        ],
+    },
+    "meditation_room": {
+        "name": "Meditation Room",
+        "sort_order": 5,
+        "description": "Voice Master plus a small controlled room — a space, not a bathroom. Expects loudness normalization on",
+        "effects_chain": [
+            {
+                "type": "highpass",
+                "enabled": True,
+                "params": {"cutoff_frequency_hz": 80.0},
+            },
+            {
+                "type": "deesser",
+                "enabled": True,
+                "params": {"frequency_hz": 6500.0, "threshold_db": -40.0, "ratio": 6.0},
+            },
+            {
+                "type": "compressor",
+                "enabled": True,
+                "params": {
+                    "threshold_db": -20.0,
+                    "ratio": 2.0,
+                    "attack_ms": 15.0,
+                    "release_ms": 250.0,
+                },
+            },
+            # Small and mostly dry: enough to place the voice in a space,
+            # not enough to smear the held silences.
+            {
+                "type": "reverb",
+                "enabled": True,
+                "params": {
+                    "room_size": 0.32,
+                    "damping": 0.6,
+                    "wet_level": 0.14,
+                    "dry_level": 0.9,
+                    "width": 0.8,
                 },
             },
         ],
@@ -333,26 +530,66 @@ def validate_effects_chain(effects_chain: List[Dict[str, Any]]) -> Optional[str]
     return None
 
 
+def _resolved_params(effect: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge an effect's configured params over the registry defaults."""
+    registry = EFFECT_REGISTRY[effect["type"]]
+    provided = effect.get("params", {})
+    return {
+        name: provided.get(name, pdef["default"])
+        for name, pdef in registry["params"].items()
+    }
+
+
+def _apply_deesser(
+    audio: np.ndarray,
+    sample_rate: int,
+    frequency_hz: float,
+    threshold_db: float,
+    ratio: float,
+) -> np.ndarray:
+    """Compress only the sibilance band and put the voice back together.
+
+    The band split is complementary rather than a filter pair: the low band
+    is what is *left over* after the high-pass, so low + high reconstructs
+    the input exactly and no phase notch appears at the crossover. Only the
+    high band meets the compressor, which is what separates a de-esser from
+    simply rolling off the top of a voice.
+    """
+    high = Pedalboard([HighpassFilter(cutoff_frequency_hz=frequency_hz)])(audio, sample_rate)
+    low = audio - high
+    tamed = Pedalboard(
+        [
+            Compressor(
+                threshold_db=threshold_db,
+                ratio=ratio,
+                # Fast enough to catch an S, slow enough to let it decay.
+                attack_ms=1.0,
+                release_ms=40.0,
+            )
+        ]
+    )(high, sample_rate)
+    return low + tamed
+
+
+# Effects implemented here rather than by a pedalboard plugin.
+CUSTOM_EFFECTS = {"deesser": _apply_deesser}
+
+
 def build_pedalboard(effects_chain: List[Dict[str, Any]]) -> Pedalboard:
     """Build a Pedalboard instance from an effects chain config.
 
-    Skips effects where ``enabled`` is ``False``.
+    Skips effects where ``enabled`` is ``False``, and effects in
+    :data:`CUSTOM_EFFECTS`, which have no plugin to build. Use
+    :func:`apply_effects` to run a chain that may contain either kind.
     """
     plugins = []
     for effect in effects_chain:
         if not effect.get("enabled", True):
             continue
+        if effect["type"] in CUSTOM_EFFECTS:
+            continue
 
-        effect_type = effect["type"]
-        registry = EFFECT_REGISTRY[effect_type]
-        cls = registry["cls"]
-
-        # Merge defaults with provided params
-        params = {}
-        for pname, pdef in registry["params"].items():
-            params[pname] = effect.get("params", {}).get(pname, pdef["default"])
-
-        plugins.append(cls(**params))
+        plugins.append(EFFECT_REGISTRY[effect["type"]]["cls"](**_resolved_params(effect)))
 
     return Pedalboard(plugins)
 
@@ -375,15 +612,37 @@ def apply_effects(
     if not effects_chain:
         return audio
 
-    board = build_pedalboard(effects_chain)
-
     # pedalboard expects shape (channels, samples)
     if audio.ndim == 1:
         audio_2d = audio[np.newaxis, :]
     else:
         audio_2d = audio
 
-    processed = board(audio_2d.astype(np.float32), sample_rate)
+    processed = audio_2d.astype(np.float32)
+
+    # Chain order matters — a de-esser before the compressor is not the same
+    # chain as one after it — so consecutive plugins are batched into a board
+    # and the custom effects run between the batches, in the order given.
+    pending: List[Dict[str, Any]] = []
+
+    def _flush(signal: np.ndarray) -> np.ndarray:
+        if not pending:
+            return signal
+        board = build_pedalboard(pending)
+        pending.clear()
+        return board(signal, sample_rate)
+
+    for effect in effects_chain:
+        if not effect.get("enabled", True):
+            continue
+        custom = CUSTOM_EFFECTS.get(effect["type"])
+        if custom is None:
+            pending.append(effect)
+            continue
+        processed = _flush(processed)
+        processed = custom(processed, sample_rate, **_resolved_params(effect))
+
+    processed = _flush(processed)
 
     # Return same dimensionality as input
     if audio.ndim == 1:

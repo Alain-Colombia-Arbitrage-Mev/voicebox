@@ -16,7 +16,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
-import { EMOTION_VALUES } from '@/lib/api/types';
+import { BREATH_STYLES, EMOTION_VALUES } from '@/lib/api/types';
 import { getLanguageOptionsForEngine, type LanguageCode } from '@/lib/constants/languages';
 import { useGenerationForm } from '@/lib/hooks/useGenerationForm';
 import { useProfile, useProfiles } from '@/lib/hooks/useProfiles';
@@ -25,11 +25,17 @@ import { cn } from '@/lib/utils/cn';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useStoryStore } from '@/stores/storyStore';
 import { useUIStore } from '@/stores/uiStore';
-import { EMOTION_ENGINES, EngineModelSelector, SPEED_ENGINES } from './EngineModelSelector';
+import {
+  BREATH_ENGINES,
+  EMOTION_ENGINES,
+  EngineModelSelector,
+  SPEED_ENGINES,
+} from './EngineModelSelector';
 import { ParalinguisticInput } from './ParalinguisticInput';
 
 const SPEED_OPTIONS = [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0];
 const PITCH_OPTIONS = [-12, -8, -4, -2, 0, 2, 4, 8, 12];
+const INTENSITY_OPTIONS = [-60, -40, -20, 0, 20, 40];
 
 interface FloatingGenerateBoxProps {
   isPlayerOpen?: boolean;
@@ -423,13 +429,19 @@ export function FloatingGenerateBox({
                                         ? 'bg-accent text-accent-foreground border border-accent hover:bg-accent/90'
                                         : 'bg-card border border-border hover:bg-background/50',
                                     )}
-                                    aria-label={active ? t('generation.persona.ariaLabelActive') : t('generation.persona.ariaLabelInactive')}
+                                    aria-label={
+                                      active
+                                        ? t('generation.persona.ariaLabelActive')
+                                        : t('generation.persona.ariaLabelInactive')
+                                    }
                                     aria-pressed={active}
                                   >
                                     <Wand2 className="h-4 w-4" />
                                   </Button>
                                   <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground border border-border opacity-0 transition-opacity group-hover:opacity-100 z-[9999]">
-                                    {active ? t('generation.persona.tooltipActive') : t('generation.persona.tooltipInactive')}
+                                    {active
+                                      ? t('generation.persona.tooltipActive')
+                                      : t('generation.persona.tooltipInactive')}
                                   </span>
                                 </div>
                               </FormControl>
@@ -570,7 +582,6 @@ export function FloatingGenerateBox({
                       </Select>
                     </div>
                   )}
-
 
                   <FormField
                     control={form.control}
@@ -729,6 +740,73 @@ export function FloatingGenerateBox({
                         )}
                       />
                     )}
+                  </div>
+                )}
+
+                {/* Breath scripting — audible breaths and held silences */}
+                {BREATH_ENGINES.has(watchedEngine || '') && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <FormField
+                      control={form.control}
+                      name="breathStyle"
+                      render={({ field }) => (
+                        <FormItem className="flex-1 space-y-0">
+                          <Select
+                            value={field.value ?? 'profile'}
+                            onValueChange={(v) => field.onChange(v === 'profile' ? undefined : v)}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="h-8 text-xs bg-card border-border rounded-full hover:bg-background/50 transition-all">
+                                <SelectValue placeholder={t('generation.breath.style')} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent side="top">
+                              <SelectItem value="profile" className="text-xs">
+                                {t('generation.breath.styleProfile')}
+                              </SelectItem>
+                              {BREATH_STYLES.map((style) => (
+                                <SelectItem key={style} value={style} className="text-xs">
+                                  {t(`generation.breath.styles.${style}`)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="intensity"
+                      render={({ field }) => (
+                        <FormItem className="flex-1 space-y-0">
+                          <Select
+                            value={String(field.value ?? 0)}
+                            onValueChange={(v) => field.onChange(parseInt(v, 10))}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="h-8 text-xs bg-card border-border rounded-full hover:bg-background/50 transition-all">
+                                <SelectValue placeholder={t('generation.breath.intensity')} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent side="top">
+                              {INTENSITY_OPTIONS.map((intensity) => (
+                                <SelectItem
+                                  key={intensity}
+                                  value={String(intensity)}
+                                  className="text-xs"
+                                >
+                                  {intensity === 0
+                                    ? t('generation.breath.intensityNeutral')
+                                    : intensity < 0
+                                      ? `${t('generation.breath.intensitySofter')} ${Math.abs(intensity)}`
+                                      : `${t('generation.breath.intensityStronger')} ${intensity}`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 )}
               </motion.div>

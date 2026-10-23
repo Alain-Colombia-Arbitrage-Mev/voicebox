@@ -56,6 +56,8 @@ def _profile_to_response(
         default_engine=getattr(profile, "default_engine", None),
         personality=getattr(profile, "personality", None),
         default_emotion=getattr(profile, "default_emotion", None),
+        default_breath_style=getattr(profile, "default_breath_style", None),
+        default_intensity=getattr(profile, "default_intensity", None),
         default_speed=getattr(profile, "default_speed", None),
         default_pitch=getattr(profile, "default_pitch", None),
         generation_count=generation_count,
@@ -532,7 +534,8 @@ async def create_voice_prompt_for_profile(
 
     For cloned profiles: combines all audio samples into a voice prompt.
     For preset profiles: returns the engine-specific preset voice reference.
-    For designed profiles: returns the text design prompt (future).
+    For designed profiles: designs the voice remotely on engines that
+    support it (MiniMax), or returns the text description otherwise.
 
     Args:
         profile_id: Profile ID
@@ -566,14 +569,23 @@ async def create_voice_prompt_for_profile(
             "preset_voice_id": profile.preset_voice_id,
         }
 
-    # ── Designed profiles: return text description (future) ──
+    # ── Designed profiles: turn the description into a remote voice ──
     if voice_type == "designed":
         if not profile.design_prompt or not profile.design_prompt.strip():
             raise ValueError(f"Designed profile {profile_id} is missing design_prompt")
-        return {
-            "voice_type": "designed",
-            "design_prompt": profile.design_prompt,
-        }
+
+        tts_model = get_tts_backend_for_engine(engine)
+        designer = getattr(tts_model, "create_designed_voice", None)
+        if designer is None:
+            # Engines without a design API still get the description, so a
+            # profile stays usable wherever it is understood as text.
+            return {
+                "voice_type": "designed",
+                "design_prompt": profile.design_prompt,
+            }
+
+        voice_prompt, _ = await designer(profile.design_prompt, use_cache=use_cache)
+        return voice_prompt
 
     if engine not in CLONING_ENGINES:
         raise ValueError(f"Engine '{engine}' does not support cloned voice profiles")

@@ -167,6 +167,12 @@ def _migrate_profiles(engine, inspector, tables: set[str]) -> None:
         _add_column(engine, "profiles", "default_speed FLOAT", "default_speed")
     if "default_pitch" not in columns:
         _add_column(engine, "profiles", "default_pitch INTEGER", "default_pitch")
+    # Delivery register — added with breath scripting
+    columns = _get_columns(inspector, "profiles")
+    if "default_breath_style" not in columns:
+        _add_column(engine, "profiles", "default_breath_style VARCHAR", "default_breath_style")
+    if "default_intensity" not in columns:
+        _add_column(engine, "profiles", "default_intensity INTEGER", "default_intensity")
 
 
 def _migrate_generations(engine, inspector, tables: set[str]) -> None:
@@ -200,6 +206,10 @@ def _migrate_generations(engine, inspector, tables: set[str]) -> None:
         _add_column(engine, "generations", "speed FLOAT", "speed")
     if "pitch" not in columns:
         _add_column(engine, "generations", "pitch INTEGER", "pitch")
+    # Delivery JSON — added with breath scripting
+    columns = _get_columns(inspector, "generations")
+    if "delivery" not in columns:
+        _add_column(engine, "generations", "delivery TEXT", "delivery")
 
 
 def _migrate_effect_presets(engine, inspector, tables: set[str]) -> None:

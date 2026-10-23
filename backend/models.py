@@ -46,6 +46,8 @@ class VoiceProfileResponse(BaseModel):
     default_emotion: Optional[str] = None
     default_speed: Optional[float] = None
     default_pitch: Optional[int] = None
+    default_breath_style: Optional[str] = None
+    default_intensity: Optional[int] = None
     generation_count: int = 0
     sample_count: int = 0
     created_at: datetime
@@ -74,6 +76,8 @@ class ProsodyAnalysisResponse(BaseModel):
     default_emotion: Optional[str] = None
     default_speed: Optional[float] = None
     default_pitch: Optional[int] = None
+    default_breath_style: Optional[str] = None
+    default_intensity: Optional[int] = None
     syllables_per_sec: float
     f0_median_hz: float
     f0_std_semitones: float
@@ -128,6 +132,39 @@ class GenerationRequest(BaseModel):
     pitch: Optional[int] = Field(
         None, ge=-12, le=12, description="Pitch shift in semitones for engines that support it"
     )
+    breath_style: Optional[str] = Field(
+        None,
+        pattern="^(off|affirmation|meditation|narration)$",
+        description=(
+            "Breath script applied before synthesis. Inserts audible breaths "
+            "and held silences so the voice performs the pauses instead of "
+            "reading through them. MiniMax only."
+        ),
+    )
+    vol: Optional[float] = Field(
+        None, gt=0, le=10, description="Loudness multiplier for engines that support it"
+    )
+    intensity: Optional[int] = Field(
+        None,
+        ge=-100,
+        le=100,
+        description="Delivery intensity; negative is softer (MiniMax voice_modify)",
+    )
+    timbre: Optional[int] = Field(
+        None,
+        ge=-100,
+        le=100,
+        description="Timbre shaping; negative is fuller (MiniMax voice_modify)",
+    )
+    sound_effects: Optional[str] = Field(
+        None,
+        pattern="^(spacious_echo|auditorium_echo|lofi_telephone|robotic)$",
+        description="Engine-side sound effect (MiniMax voice_modify)",
+    )
+    text_normalization: Optional[bool] = Field(
+        None,
+        description="Read digits and units as words. Defaults on for MiniMax.",
+    )
     personality: bool = Field(
         default=False,
         description="When true and the profile has a personality prompt, the input text is rewritten in-character before TTS.",
@@ -139,9 +176,34 @@ class GenerationRequest(BaseModel):
         default=50, ge=0, le=500, description="Crossfade duration in ms between chunks (0 for hard cut)"
     )
     normalize: bool = Field(default=True, description="Normalize output audio volume")
+    target_lufs: Optional[float] = Field(
+        None,
+        ge=-36.0,
+        le=-6.0,
+        description=(
+            "Integrated loudness target in LUFS, applied after the effects "
+            "chain. Defaults to -16 LUFS, the mono spoken-word convention."
+        ),
+    )
     effects_chain: Optional[List["EffectConfig"]] = Field(
         None, description="Effects chain to apply after generation (overrides profile default)"
     )
+
+    def delivery_options(self) -> dict:
+        """The engine-specific delivery controls that were actually set.
+
+        Unset keys are omitted rather than sent as None so a profile
+        default can fill them in downstream.
+        """
+        keys = (
+            "breath_style",
+            "vol",
+            "intensity",
+            "timbre",
+            "sound_effects",
+            "text_normalization",
+        )
+        return {k: v for k in keys if (v := getattr(self, k)) is not None}
 
 
 class MusicGenerationRequest(BaseModel):
@@ -233,6 +295,7 @@ class GenerationResponse(BaseModel):
     emotion: Optional[str] = None
     speed: Optional[float] = None
     pitch: Optional[int] = None
+    delivery: Optional[str] = None
     status: str = "completed"
     error: Optional[str] = None
     is_favorited: bool = False

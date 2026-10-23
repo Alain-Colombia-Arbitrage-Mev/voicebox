@@ -4,6 +4,7 @@ Generation history management module.
 
 from typing import List, Optional, Tuple
 from datetime import datetime
+import json
 import uuid
 import shutil
 from pathlib import Path
@@ -69,6 +70,7 @@ async def create_generation(
     emotion: Optional[str] = None,
     speed: Optional[float] = None,
     pitch: Optional[int] = None,
+    delivery: Optional[dict] = None,
 ) -> GenerationResponse:
     """
     Create a new generation history entry.
@@ -90,6 +92,9 @@ async def create_generation(
             /generate calls; ``"personality_speak"`` for rows created
             by the /profiles/{id}/speak endpoint. Enables filtering the
             history view for personality-driven output.
+        delivery: Engine-specific delivery controls (breath style,
+            voice_modify…) stored as JSON so retry and regenerate can
+            reproduce the same take.
 
     Returns:
         Created generation entry
@@ -108,6 +113,7 @@ async def create_generation(
         emotion=emotion,
         speed=speed,
         pitch=pitch,
+        delivery=json.dumps(delivery) if delivery else None,
         status=status,
         source=source,
         created_at=datetime.utcnow(),

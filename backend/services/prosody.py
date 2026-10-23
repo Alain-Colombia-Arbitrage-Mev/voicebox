@@ -37,6 +37,8 @@ class ProsodyAnalysis:
     speed: float  # engine speed multiplier [0.6, 1.4]
     emotion: Optional[str]  # MiniMax emotion value or None (auto)
     pitch: int  # semitone shift — always 0, the clone carries timbre
+    breath_style: str  # key of services.breath.BREATH_STYLES
+    intensity: int  # voice_modify intensity [-100, 100]; negative is softer
     # Raw metrics, returned for transparency/debugging
     syllables_per_sec: float
     f0_median_hz: float
@@ -118,6 +120,8 @@ def analyze_sample(audio_path: str, reference_text: str) -> ProsodyAnalysis:
         speed=speed,
         emotion=emotion,
         pitch=0,
+        breath_style=_infer_breath_style(rate_ratio, pause_ratio, f0_std_st),
+        intensity=_infer_intensity(rate_ratio),
         syllables_per_sec=round(syl_per_sec, 2),
         f0_median_hz=round(f0_median, 1),
         f0_std_semitones=round(f0_std_st, 2),
@@ -195,6 +199,34 @@ def _effects_for_tail(tail_sec: float) -> list:
             }
         )
     return chain
+
+
+def _infer_breath_style(rate_ratio: float, pause_ratio: float, f0_std_st: float) -> str:
+    """Pick the breath script that matches how the reference was delivered.
+
+    The same three signals that drive emotion, read for a different
+    question: not *what* the speaker feels, but how much air and silence
+    their delivery leaves room for.
+    """
+    # Long gaps or markedly slow articulation — a guided practice.
+    if pause_ratio > 0.30 or rate_ratio < 0.85:
+        return "meditation"
+    # Deliberate and level: statements meant to land one at a time.
+    if rate_ratio < 1.0 and f0_std_st < 3.0:
+        return "affirmation"
+    return "narration"
+
+
+def _infer_intensity(rate_ratio: float) -> int:
+    """Scale delivery intensity with how far below conversational the rate sits.
+
+    A reference recorded at 70% of conversational pace was not just slower,
+    it was softer; ``voice_modify.intensity`` reproduces that without
+    re-cloning. Rates at or above conversational get no adjustment.
+    """
+    if rate_ratio >= 1.0:
+        return 0
+    return int(round(max(-40.0, -60.0 * (1.0 - rate_ratio))))
 
 
 def _infer_emotion(

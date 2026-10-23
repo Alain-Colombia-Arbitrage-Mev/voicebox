@@ -50,6 +50,10 @@ class VoiceProfile(Base):
     default_emotion = Column(String, nullable=True)
     default_speed = Column(Float, nullable=True)
     default_pitch = Column(Integer, nullable=True)
+    # Delivery register: which breath script and how soft the performance
+    # is, so a profile cloned for meditation stays in that register.
+    default_breath_style = Column(String, nullable=True)
+    default_intensity = Column(Integer, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -87,6 +91,9 @@ class Generation(Base):
     emotion = Column(String, nullable=True)
     speed = Column(Float, nullable=True)
     pitch = Column(Integer, nullable=True)
+    # Engine-specific delivery controls as JSON, so retry and regenerate
+    # reproduce the take instead of falling back to a flat read.
+    delivery = Column(Text, nullable=True)
     status = Column(String, default="completed")
     error = Column(Text, nullable=True)
     is_favorited = Column(Boolean, default=False)

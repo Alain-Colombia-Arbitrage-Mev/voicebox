@@ -44,6 +44,187 @@ def normalize_audio(
     return audio
 
 
+# Spoken-word delivery targets: -16 LUFS is the mono podcast convention,
+# and a -1 dBFS ceiling leaves room for lossy encoders to overshoot.
+DEFAULT_TARGET_LUFS = -16.0
+DEFAULT_CEILING_DB = -1.0
+
+# ITU-R BS.1770 integrates over 400 ms blocks; shorter material has no
+# measurable integrated loudness.
+_MIN_LOUDNESS_SECONDS = 0.4
+
+
+def normalize_loudness(
+    audio: np.ndarray,
+    sample_rate: int,
+    target_lufs: float = DEFAULT_TARGET_LUFS,
+    ceiling_db: float = DEFAULT_CEILING_DB,
+) -> np.ndarray:
+    """Normalize to an integrated-loudness target, then guarantee headroom.
+
+    Loudness (ITU-R BS.1770) is what a listener actually perceives, so two
+    takes normalized this way sit at the same level even when one is breathy
+    and full of held silence and the other is not. RMS normalization cannot
+    do that: silence drags the average down, and a meditation script is
+    mostly silence.
+
+    Peaks above *ceiling_db* are limited, not scaled away. Scaling the whole
+    file by its single worst transient would cost several dB of loudness to
+    one plosive; the limiter spends that reduction only where the peak is,
+    so the take still lands on target.
+
+    Args:
+        audio: Input audio array (mono, float).
+        sample_rate: Sample rate in Hz.
+        target_lufs: Integrated loudness target in LUFS.
+        ceiling_db: Peak ceiling in dBFS.
+
+    Returns:
+        Normalized audio array.
+    """
+    import pyloudnorm
+
+    audio = audio.astype(np.float32)
+
+    # Too short to measure, or pure silence: nothing meaningful to match.
+    if len(audio) < _MIN_LOUDNESS_SECONDS * sample_rate:
+        return normalize_audio(audio)
+    if not np.any(audio):
+        return audio
+
+    meter = pyloudnorm.Meter(sample_rate)
+    loudness = meter.integrated_loudness(audio)
+    if not np.isfinite(loudness):
+        return audio
+
+    audio = audio * (10 ** ((target_lufs - loudness) / 20))
+
+    ceiling = 10 ** (ceiling_db / 20)
+    if float(np.max(np.abs(audio))) > ceiling:
+        audio = limit_peaks(audio, sample_rate, ceiling)
+
+    return audio.astype(np.float32)
+
+
+# Look-ahead and recovery for the peak limiter. 5 ms is long enough to ride
+# a plosive down before it arrives without audibly ducking the word.
+_LIMITER_LOOKAHEAD_SECONDS = 0.005
+_LIMITER_RELEASE_SECONDS = 0.05
+
+
+def limit_peaks(audio: np.ndarray, sample_rate: int, ceiling: float) -> np.ndarray:
+    """Hold *audio* under *ceiling* by ducking only around the peaks.
+
+    Deliberately not pedalboard's ``Limiter``: that one applies makeup gain
+    up to its threshold, which is a loudness maximizer and would undo a
+    loudness target. This computes a gain envelope that is 1.0 everywhere
+    the signal already fits, so the integrated loudness barely moves.
+
+    Args:
+        audio: Input audio array (mono, float).
+        sample_rate: Sample rate in Hz.
+        ceiling: Peak ceiling as a linear amplitude (not dB).
+
+    Returns:
+        Audio whose absolute peak is at most *ceiling*.
+    """
+    from scipy.ndimage import minimum_filter1d
+    from scipy.signal import fftconvolve
+
+    envelope = np.abs(audio)
+    required = np.minimum(1.0, ceiling / np.maximum(envelope, 1e-9)).astype(np.float32)
+
+    # Widen each reduction to cover look-ahead plus recovery, so the gain is
+    # already down when the peak lands and comes back up gradually after it.
+    span = int((_LIMITER_LOOKAHEAD_SECONDS + _LIMITER_RELEASE_SECONDS) * sample_rate)
+    window = max(3, (2 * span + 1) | 1)
+    gain = minimum_filter1d(required, size=window, mode="nearest")
+
+    # Round off the corners of that envelope; a rectangular gain step is what
+    # would be audible as distortion. The kernel is kept strictly narrower
+    # than the minimum window, which is what guarantees the smoothed gain can
+    # never rise back above what any peak in reach requires.
+    kernel_size = max(3, min(span, window // 2 - 1) | 1)
+    kernel = np.hanning(kernel_size + 2)[1:-1]
+    kernel = kernel / kernel.sum()
+    # Edge-pad first: "same" convolution tapers toward the array bounds,
+    # which would fade the first and last tens of milliseconds of every
+    # limited take. Padding with the edge value keeps those samples flat.
+    pad = kernel_size // 2
+    padded = np.pad(gain, pad, mode="edge")
+    # FFT convolution: a direct one at this kernel length costs tens of
+    # seconds on a five-minute take.
+    gain = fftconvolve(padded, kernel, mode="same")[pad : pad + len(audio)].astype(np.float32)
+
+    return np.clip(audio * gain, -ceiling, ceiling)
+
+
+# Room tone. A real microphone records its room everywhere, including under
+# the speech, so the bed is continuous rather than patched into the gaps:
+# no seams to click, and the inter-word micro-gaps get a floor too.
+ROOM_TONE_LEVEL_DB = -60.0
+_ROOM_TONE_FADE_SECONDS = 0.03
+# Width of the smoothing kernel on the noise. Unfiltered white noise reads
+# as hiss; taking the top off makes it read as a room.
+_ROOM_TONE_SMOOTHING = 16
+
+
+def add_room_tone(
+    audio: np.ndarray,
+    sample_rate: int,
+    level_db: float = ROOM_TONE_LEVEL_DB,
+) -> np.ndarray:
+    """Lay a continuous noise floor under the take.
+
+    A synthesized pause is samples of exactly zero. Cutting from voice to
+    absolute nothing and back is the most recognisably synthetic thing in a
+    spoken recording, and a meditation script is mostly pause — so it is
+    also the most audible. At -60 dBFS the bed is inaudible as sound and
+    audible only as the absence of a hole.
+
+    Args:
+        audio: Input audio array (mono, float).
+        sample_rate: Sample rate in Hz.
+        level_db: RMS level of the bed in dBFS.
+
+    Returns:
+        Audio of the same length with a noise floor under it.
+    """
+    audio = audio.astype(np.float32)
+    if len(audio) < 2:
+        return audio
+
+    rng = np.random.default_rng(0)
+    noise = rng.standard_normal(len(audio)).astype(np.float32)
+    kernel = np.ones(_ROOM_TONE_SMOOTHING, dtype=np.float32) / _ROOM_TONE_SMOOTHING
+    noise = np.convolve(noise, kernel, mode="same").astype(np.float32)
+
+    rms = float(np.sqrt(np.mean(noise**2)))
+    if rms == 0:
+        return audio
+    noise *= (10 ** (level_db / 20)) / rms
+
+    # Ease the floor in and out so the file does not begin on a step.
+    fade_n = min(int(_ROOM_TONE_FADE_SECONDS * sample_rate), len(noise) // 2)
+    if fade_n > 0:
+        ramp = np.linspace(0.0, 1.0, fade_n, dtype=np.float32)
+        noise[:fade_n] *= ramp
+        noise[-fade_n:] *= ramp[::-1]
+
+    return audio + noise
+
+
+def measure_loudness(audio: np.ndarray, sample_rate: int) -> Optional[float]:
+    """Integrated loudness in LUFS, or None when the clip is too short."""
+    import pyloudnorm
+
+    audio = audio.astype(np.float32)
+    if len(audio) < _MIN_LOUDNESS_SECONDS * sample_rate or not np.any(audio):
+        return None
+    loudness = pyloudnorm.Meter(sample_rate).integrated_loudness(audio)
+    return float(loudness) if np.isfinite(loudness) else None
+
+
 def load_audio(
     path: str,
     sample_rate: int = 24000,

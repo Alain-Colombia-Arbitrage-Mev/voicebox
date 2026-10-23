@@ -57,6 +57,8 @@ const CLONING_ENGINES = new Set([
 /** Engines with per-generation prosody controls (emotion select, speed slider). */
 export const EMOTION_ENGINES = new Set(['minimax']);
 export const SPEED_ENGINES = new Set(['minimax', 'kokoro']);
+// Breath scripting emits MiniMax markup — sound tags and <#x#> pauses.
+export const BREATH_ENGINES = new Set(['minimax']);
 
 function getAvailableOptions(selectedProfile?: VoiceProfileResponse | null) {
   if (!selectedProfile) return ENGINE_OPTIONS;

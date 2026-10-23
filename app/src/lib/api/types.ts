@@ -33,6 +33,8 @@ export interface VoiceProfileResponse {
   default_emotion?: string | null;
   default_speed?: number | null;
   default_pitch?: number | null;
+  default_breath_style?: BreathStyle | null;
+  default_intensity?: number | null;
   generation_count: number;
   sample_count: number;
   created_at: string;
@@ -44,6 +46,13 @@ export interface PersonalityTextResponse {
   text: string;
   model_size: string;
 }
+
+/** Breath scripts. "off" speaks the text as written. */
+export type BreathStyle = 'off' | 'affirmation' | 'meditation' | 'narration';
+
+export const BREATH_STYLES: BreathStyle[] = ['off', 'affirmation', 'meditation', 'narration'];
+
+export type MiniMaxSoundEffect = 'spacious_echo' | 'auditorium_echo' | 'lofi_telephone' | 'robotic';
 
 export interface PresetVoice {
   voice_id: string;
@@ -105,11 +114,25 @@ export interface GenerationRequest {
   speed?: number;
   /** Pitch shift in semitones [-12, 12] for engines that support it. */
   pitch?: number;
+  /** Breath script applied before synthesis — audible breaths and held silences (MiniMax). */
+  breath_style?: BreathStyle;
+  /** Loudness multiplier (0, 10] for engines that support it. */
+  vol?: number;
+  /** Delivery intensity [-100, 100]; negative is softer (MiniMax voice_modify). */
+  intensity?: number;
+  /** Timbre shaping [-100, 100]; negative is fuller (MiniMax voice_modify). */
+  timbre?: number;
+  /** Engine-side sound effect (MiniMax voice_modify). */
+  sound_effects?: MiniMaxSoundEffect;
+  /** Read digits and units as words. Defaults on for MiniMax. */
+  text_normalization?: boolean;
   /** When true and the profile has a personality prompt, input text is rewritten in-character before TTS. */
   personality?: boolean;
   max_chunk_chars?: number;
   crossfade_ms?: number;
   normalize?: boolean;
+  /** Integrated loudness target in LUFS, applied after the effects chain. Defaults to -16. */
+  target_lufs?: number;
   effects_chain?: EffectConfig[];
 }
 
@@ -175,6 +198,8 @@ export interface GenerationResponse {
   emotion?: string;
   speed?: number;
   pitch?: number;
+  /** Delivery controls the take was produced with, as JSON. */
+  delivery?: string | null;
   status: 'loading_model' | 'generating' | 'completed' | 'failed';
   error?: string;
   is_favorited?: boolean;
